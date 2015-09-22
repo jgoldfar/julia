@@ -1082,7 +1082,6 @@ export
     fullname,
     functionloc,
     isconst,
-    isgeneric,
     isinteractive,
     less,
     method_exists,
