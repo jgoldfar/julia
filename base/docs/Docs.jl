@@ -107,7 +107,12 @@ function write_lambda_signature(io::IO, lam::LambdaStaticData)
     write(io, '(')
     nargs = length(ex.args[1])
     for (i,arg) in enumerate(ex.args[1])
-        argname, argtype = arg.args
+        i==1 && continue
+        if isa(arg,Expr)
+            argname, argtype = arg.args
+        else
+            argname, argtype = arg, :Any
+        end
         if argtype === :Any || argtype === :ANY
             write(io, argname)
         elseif isa(argtype,Expr) && argtype.head === :... &&
@@ -122,14 +127,11 @@ function write_lambda_signature(io::IO, lam::LambdaStaticData)
     return io
 end
 
-function macrosummary(name::Symbol, func::Function)
-    if !isdefined(func,:code) || func.code == nothing
-        return Markdown.parse("\n")
-    end
+function macrosummary(name::Symbol, func::LambdaStaticData)
     io  = IOBuffer()
     write(io, "```julia\n")
     write(io, name)
-    write_lambda_signature(io, func.code)
+    write_lambda_signature(io, func)
     write(io, "\n```")
     return Markdown.parse(takebuf_string(io))
 end
@@ -137,14 +139,8 @@ end
 function functionsummary(func::Function)
     io  = IOBuffer()
     write(io, "```julia\n")
-    if isgeneric(func)
-        print(io, methods(func))
-    else
-        if isdefined(func,:code) && func.code !== nothing
-            write_lambda_signature(io, func.code)
-            write(io, " -> ...")
-        end
-    end
+    print(io, methods(func))
+    # TODO jb/functions better summary for closures?
     write(io, "\n```")
     return Markdown.parse(takebuf_string(io))
 end
@@ -323,7 +319,7 @@ function doc!(T::DataType, sig::ANY, data, source)
 end
 
 function doc(obj::Base.Callable, sig::Type = Union)
-    isgeneric(obj) && sig !== Union && isempty(methods(obj, sig)) && return nothing
+    sig !== Union && isempty(methods(obj, sig)) && return nothing
     results, groups = [], []
     for m in modules
         if haskey(meta(m), obj)

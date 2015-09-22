@@ -2,9 +2,6 @@
 
 ## basic task functions and TLS
 
-# allow tasks to be constructed with arbitrary function objects
-Task(f) = Task(()->f())
-
 function show(io::IO, t::Task)
     print(io, "Task ($(t.state)) @0x$(hex(convert(UInt, pointer_from_objref(t)), WORD_SIZE>>2))")
 end
@@ -432,6 +429,6 @@ function async_run_thunk(thunk)
 end
 
 macro async(expr)
-    expr = localize_vars(:(()->($expr)), false)
-    :(async_run_thunk($(esc(expr))))
+    expr = localize_vars(esc(:(()->($expr))), false)
+    :(async_run_thunk($expr))
 end
