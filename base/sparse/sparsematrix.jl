@@ -77,7 +77,7 @@ convenient iterating over a sparse matrix :
 nzrange(S::SparseMatrixCSC, col::Integer) = S.colptr[col]:(S.colptr[col+1]-1)
 
 function Base.showarray(io::IO, S::SparseMatrixCSC;
-                   header::Bool=true, limit::Bool=Base._limit_output,
+                   header::Bool=true, limit::Bool=Base.limit_output(io),
                    rows = Base.tty_size()[1], repr=false)
     # TODO: repr?
 
