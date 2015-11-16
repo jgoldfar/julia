@@ -61,11 +61,12 @@ function _truncate_at_width_or_chars(str, width, chars="", truncmark="…")
 end
 
 showdict(t::Associative; kw...) = showdict(STDOUT, t; kw...)
-function showdict{K,V}(io::IO, t::Associative{K,V}; limit::Bool = false, compact = false,
+function showdict{K,V}(io::IO, t::Associative{K,V}; compact = false,
                        sz=(s = tty_size(); (s[1]-3, s[2])))
     (:SHOWN_SET => t) in io && (print(io, "#= circular reference =#"); return)
 
     recur_io = IOContext(io, :SHOWN_SET => t)
+    limit::Bool = limit_output(io)
     if compact
         # show in a Julia-syntax-like form: Dict(k=>v, ...)
         if isempty(t)
@@ -129,7 +130,7 @@ function showdict{K,V}(io::IO, t::Associative{K,V}; limit::Bool = false, compact
         if limit
             val = sprint(0, show, v, env=recur_io)
             val = _truncate_at_width_or_chars(val, cols - keylen, "\r\n")
-            print(recur_io, val)
+            print(io, val)
         else
             show(recur_io, v)
         end
@@ -149,8 +150,9 @@ summary{T<:Union{KeyIterator,ValueIterator}}(iter::T) =
 show(io::IO, iter::Union{KeyIterator,ValueIterator}) = show(io, collect(iter))
 
 showkv(iter::Union{KeyIterator,ValueIterator}; kw...) = showkv(STDOUT, iter; kw...)
-function showkv{T<:Union{KeyIterator,ValueIterator}}(io::IO, iter::T; limit::Bool = false,
+function showkv{T<:Union{KeyIterator,ValueIterator}}(io::IO, iter::T;
                                                      sz=(s = tty_size(); (s[1]-3, s[2])))
+    limit::Bool = limit_output(io)
     rows, cols = sz
     print(io, summary(iter))
     isempty(iter) && return

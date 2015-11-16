@@ -43,11 +43,6 @@ function writemime(io::IO, ::MIME"text/plain", v::DataType)
     # TODO: maybe show constructor info?
 end
 
-writemime(io::IO, ::MIME"text/plain", t::Associative) =
-    showdict(io, t, limit=true)
-writemime(io::IO, ::MIME"text/plain", t::Union{KeyIterator, ValueIterator}) =
-    showkv(io, t, limit=true)
-
 function writemime(io::IO, ::MIME"text/plain", t::Task)
     show(io, t)
     if t.state == :failed
