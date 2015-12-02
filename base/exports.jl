@@ -709,6 +709,8 @@ export
     tril,
     triu!,
     triu,
+    update,
+    update!,
     vecdot,
     vecnorm,
     ⋅,

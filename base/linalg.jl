@@ -126,6 +126,8 @@ export
     triu,
     tril!,
     triu!,
+    update,
+    update!,
     vecdot,
     vecnorm,
 
