@@ -3488,8 +3488,9 @@ static jl_cgval_t emit_expr(jl_value_t *expr, jl_codectx_t *ctx, bool isboxed, b
         jl_value_t *mn = args[0];
         if (jl_is_symbolnode(mn))
             mn = (jl_value_t*)jl_symbolnode_sym(mn);
-        if (jl_expr_nargs(ex) == 1) {
-            assert(jl_is_symbol(mn));
+        assert(jl_expr_nargs(ex) != 1 || jl_is_symbol(mn));
+
+        if (jl_is_symbol(mn)) {
             Value *name = literal_pointer_val(mn);
             jl_binding_t *bnd = NULL;
             Value *bp, *bp_owner = V_null;
@@ -3503,10 +3504,12 @@ static jl_cgval_t emit_expr(jl_value_t *expr, jl_codectx_t *ctx, bool isboxed, b
                 bp = vi.memloc;
             }
             Value *mdargs[4] = { name, bp, bp_owner, literal_pointer_val(bnd) };
-            return mark_julia_type(
+            jl_cgval_t gf = mark_julia_type(
                     builder.CreateCall(prepare_call(jlgenericfunction_func), ArrayRef<Value*>(&mdargs[0], 4)),
                     true,
                     jl_function_type);
+            if (jl_expr_nargs(ex) == 1)
+                return gf;
         }
         int last_depth = ctx->gc.argDepth;
         Value *a1 = boxed(emit_expr(args[1], ctx),ctx);
