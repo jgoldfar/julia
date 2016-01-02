@@ -335,9 +335,9 @@ $(error Address Sanitizer only supported with clang. Try setting SANITIZE=0)
 endif
 CC := $(CROSS_COMPILE)gcc
 CXX := $(CROSS_COMPILE)g++
-JCFLAGS := -std=gnu99 -pipe $(fPIC) -fno-strict-aliasing -D_FILE_OFFSET_BITS=64 -fno-ipa-ra -mincoming-stack-boundary=2
+JCFLAGS := -std=gnu99 -pipe $(fPIC) -fno-strict-aliasing -D_FILE_OFFSET_BITS=64
 JCPPFLAGS :=
-JCXXFLAGS := -pipe $(fPIC) -fno-rtti -mincoming-stack-boundary=2
+JCXXFLAGS := -pipe $(fPIC) -fno-rtti
 DEBUGFLAGS := -O0 -ggdb3 -DJL_DEBUG_BUILD -fstack-protector-all
 SHIPFLAGS := -O3 -ggdb3 -falign-functions
 endif
@@ -377,6 +377,13 @@ JCPPFLAGS :=
 JCXXFLAGS := -pipe $(fPIC) -fno-rtti
 DEBUGFLAGS := -O0 -g -DJL_DEBUG_BUILD -fstack-protector-all
 SHIPFLAGS := -O3 -g -falign-functions
+endif
+
+ifeq ($(OS),WINNT)
+ifneq ($(ARCH),x86_64)
+JCFLAGS += -mincoming-stack-boundary=2
+JCXXFLAGS += -mincoming-stack-boundary=2
+endif
 endif
 
 JCPPFLAGS += -ftls-model=global-dynamic
