@@ -873,6 +873,7 @@ static Function *to_function(jl_lambda_info_t *li, jl_cyclectx_t *cyclectx)
     if (imaging_mode)
 #endif
         FPM->run(*f);
+
     if (old != NULL) {
         builder.SetInsertPoint(old);
         builder.SetCurrentDebugLocation(olddl);
@@ -6310,6 +6311,9 @@ extern "C" void jl_init_codegen(void)
     jl_TargetMachine->setFastISel(true);
 #endif
 
+#if defined(USE_ORCJIT)
+    builtins_module->setDataLayout(jl_TargetMachine->createDataLayout());
+#endif
 #if defined(LLVM38)
     engine_module->setDataLayout(jl_TargetMachine->createDataLayout());
     active_module->setDataLayout(jl_TargetMachine->createDataLayout());
