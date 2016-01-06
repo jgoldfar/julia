@@ -967,7 +967,7 @@ end
 
 @deprecate parseip(str::AbstractString) parse(IPAddr, str)
 
-@deprecate isgeneric(f) true
+@deprecate isgeneric(f) isa(f,Function)
 
 # need to do this manually since the front end deprecates method defs of `call`
 const call = @eval function(f,args...)
