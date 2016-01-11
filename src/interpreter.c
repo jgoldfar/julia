@@ -89,14 +89,14 @@ static int equiv_type(jl_datatype_t *dta, jl_datatype_t *dtb)
             // TODO: can't yet handle parametric types due to how constructors work
             dta->parameters == jl_emptysvec &&
             dta->name->name == dtb->name->name &&
-            jl_egal((jl_value_t*)dta->types, (jl_value_t*)dtb->types) &&
+            jl_egal_all_svec(dta->types, dtb->types) &&
             dta->abstract == dtb->abstract &&
             dta->mutabl == dtb->mutabl &&
             dta->size == dtb->size &&
             dta->ninitialized == dtb->ninitialized &&
             jl_egal((jl_value_t*)dta->super, (jl_value_t*)dtb->super) &&
-            jl_egal((jl_value_t*)dta->name->names, (jl_value_t*)dtb->name->names) &&
-            jl_egal((jl_value_t*)dta->parameters, (jl_value_t*)dtb->parameters));
+            jl_egal_all_svec(dta->name->names, dtb->name->names) &&
+            jl_egal_all_svec(dta->parameters, dtb->parameters));
 }
 
 static void check_can_assign_type(jl_binding_t *b)
