@@ -1,34 +1,8 @@
 language: cpp
 sudo: false
+os:
+    - osx
 matrix:
-  include:
-    - os: linux
-      env: ARCH="i686"
-      compiler: "g++-5 -m32"
-      addons:
-        apt:
-          sources:
-            - ubuntu-toolchain-r-test
-          packages:
-            - bar
-            - binutils:i386
-            - gcc-5:i386
-            - g++-5:i386
-            - make:i386
-            - cpp-5:i386
-            - libssl-dev:i386
-            - gfortran-5:i386
-    - os: linux
-      env: ARCH="x86_64"
-      compiler: "g++-5 -m64"
-      addons:
-        apt:
-          sources:
-            - ubuntu-toolchain-r-test
-          packages:
-            - bar
-            - g++-5
-            - gfortran-5
     - os: osx
       env: ARCH="x86_64"
 cache:
@@ -87,6 +61,7 @@ script:
     - cd .. && mv julia julia2
     - cp /tmp/julia/lib/julia/sys.ji local.ji && /tmp/julia/bin/julia -J local.ji -e 'true' && /tmp/julia/bin/julia-debug -J local.ji -e 'true' && rm local.ji
     - /tmp/julia/bin/julia -e 'versioninfo()'
+    - nm /tmp/julia/lib/julia/libjulia.dylib | grep JuliaOJIT
     - export JULIA_CPU_CORES=2 && cd /tmp/julia/share/julia/test && /tmp/julia/bin/julia --check-bounds=yes runtests.jl all && /tmp/julia/bin/julia --check-bounds=yes runtests.jl libgit2-online pkg
     - cd `dirname $TRAVIS_BUILD_DIR` && mv julia2 julia && rm -rf julia/deps/build/julia-env
 # uncomment the following if failures are suspected to be due to the out-of-memory killer
