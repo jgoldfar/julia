@@ -132,10 +132,10 @@ value_t fl_current_module_counter(fl_context_t *fl_ctx, value_t *args, uint32_t 
         return fixnum(jl_module_next_counter(jl_current_module));
 }
 
-value_t fl_invoke_julia_macro(value_t *args, uint32_t nargs)
+value_t fl_invoke_julia_macro(fl_context_t *fl_ctx, value_t *args, uint32_t nargs)
 {
     if (nargs < 1)
-        argcount("invoke-julia-macro", nargs, 1);
+        argcount(fl_ctx, "invoke-julia-macro", nargs, 1);
     jl_value_t *f = NULL;
     jl_value_t **margs;
     // Reserve one more slot for the result
@@ -545,14 +545,18 @@ static jl_value_t *scm_to_julia_(fl_context_t *fl_ctx, value_t e, int eo)
             sym = quote_sym;
         }
         jl_expr_t *ex = jl_exprn(sym, n);
+        JL_GC_PUSH1(&ex);
         // allocate a fresh args array for empty exprs passed to macros
-        if (eo && n == 0)
+        if (eo && n == 0) {
             ex->args = jl_alloc_cell_1d(0);
+            jl_gc_wb(ex, ex->args);
+        }
         for(i=0; i < n; i++) {
             assert(iscons(e));
-            jl_cellset(ex->args, i, scm_to_julia_(car_(e),eo));
+            jl_cellset(ex->args, i, scm_to_julia_(fl_ctx, car_(e), eo));
             e = cdr_(e);
         }
+        JL_GC_POP();
         if (sym == list_sym)
             return (jl_value_t*)ex->args;
         return (jl_value_t*)ex;
