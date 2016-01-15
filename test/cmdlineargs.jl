@@ -241,4 +241,13 @@ let exename = `$(joinpath(JULIA_HOME, Base.julia_exename())) --precompiled=yes`
     @test readchomp(`$exename --compilecache=yes -E "Bool(Base.JLOptions().use_compilecache)"`) == "true"
     @test readchomp(`$exename --compilecache=no -E "Bool(Base.JLOptions().use_compilecache)"`) == "false"
     @test !success(`$exename --compilecache=foo -e "exit(0)"`)
+
+    # issue #12671, starting from a non-directory
+    let testdir = tempname()
+        mkdir(testdir)
+        cd(testdir) do
+            rm(testdir)
+            @test success(`$exename -e`)
+        end
+    end
 end
