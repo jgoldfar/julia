@@ -84,7 +84,7 @@ containsnul(p::Ptr, len) = C_NULL != ccall(:memchr, Ptr{Cchar}, (Ptr{Cchar}, Cin
 function unsafe_convert(::Type{Cstring}, s::ByteString)
     p = unsafe_convert(Ptr{Cchar}, s)
     if containsnul(p, sizeof(s))
-        throw(ArgumentError("embedded NUL chars are not allowed in C strings: $(repr(s))"))
+        throw(ArgumentError("embedded NULs are not allowed in C strings: $(repr(s))"))
     end
     return Cstring(p)
 end
@@ -93,6 +93,13 @@ end
 convert(::Type{Cstring}, s::Symbol) = Cstring(unsafe_convert(Ptr{Cchar}, s))
 
 # in string.jl: unsafe_convert(::Type{Cwstring}, s::WString)
+
+# FIXME: this should be handled by implicit conversion to Cwstring, but good luck with that
+@windows_only function cwstring(s::AbstractString)
+    bytes = bytestring(s).data
+    0 in bytes && throw(ArgumentError("embedded NULs are not allowed in C strings: $(repr(s))"))
+    return push!(utf8to16(bytes), 0)
+end
 
 # conversions between UTF-8 and UTF-16 for Windows APIs
 
