@@ -25,3 +25,9 @@ let c = collect(ENV)
     @test length(ENV) == length(c)
     @test isempty(ENV) || first(ENV) in c
 end
+
+# test for non-existent keys
+key = randstring(25)
+@test !haskey(ENV,key)
+@test_throws KeyError ENV[key]
+@test get(ENV,key,"default") == "default"
