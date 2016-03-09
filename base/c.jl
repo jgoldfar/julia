@@ -80,7 +80,11 @@ unsafe_wrap(::Type{String}, p::Cstring, len::Integer, own::Bool=false) =
 unsafe_string(s::Cstring) = unsafe_string(convert(Ptr{UInt8}, s))
 
 # convert strings to String etc. to pass as pointers
-cconvert(::Type{Cstring}, s::AbstractString) = String(s)
+cconvert(::Type{Cstring}, s::String) =
+    ccall(:jl_array_cconvert_cstring, Ref{Vector{UInt8}},
+          (Vector{UInt8},), s.data)
+cconvert(::Type{Cstring}, s::AbstractString) =
+    cconvert(Cstring, String(s)::String)
 cconvert(::Type{Cwstring}, s::AbstractString) = wstring(s)
 
 containsnul(p::Ptr, len) =
@@ -88,7 +92,7 @@ containsnul(p::Ptr, len) =
 containsnul(s::String) = containsnul(unsafe_convert(Ptr{Cchar}, s), sizeof(s))
 containsnul(s::AbstractString) = '\0' in s
 
-function unsafe_convert(::Type{Cstring}, s::String)
+function unsafe_convert(::Type{Cstring}, s::Vector{UInt8})
     p = unsafe_convert(Ptr{Cchar}, s)
     if containsnul(p, sizeof(s))
         throw(ArgumentError("embedded NULs are not allowed in C strings: $(repr(s))"))
