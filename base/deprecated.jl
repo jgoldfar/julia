@@ -1020,6 +1020,11 @@ function pmap(f, c...; err_retry=nothing, err_stop=nothing, pids=nothing)
     return pmap(p, f, c...)
 end
 
+@deprecate ==(x::Char, y::Integer)      UInt32(x) == y
+@deprecate ==(x::Integer, y::Char)      x == UInt32(y)
+@deprecate isless(x::Char, y::Integer)  isless(UInt32(x), y)
+@deprecate isless(x::Integer, y::Char)  isless(x, UInt32(y))
+
 
 # During the 0.5 development cycle, do not add any deprecations below this line
 # To be deprecated in 0.6
