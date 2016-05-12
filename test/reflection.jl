@@ -408,3 +408,7 @@ tracefoo(x::Int64, y::Int64) = x*y
 @test didtrace
 didtrace = false
 ccall(:jl_register_newmeth_tracer, Void, (Ptr{Void},), C_NULL)
+
+# issue #15280
+function f15280(x) end
+@test functionloc(f15280)[2] > 0
