@@ -4149,3 +4149,16 @@ end
 @noinline MaybeFunc(T) = Union{T, Void}
 fMaybeFunc() = MaybeFunc(Int64)
 @test fMaybeFunc() == Union{Int64, Void}
+
+# issue #1090
+function f1090(x)::Int
+    if x == 1
+        return 1
+    end
+    2.0
+end
+@test f1090(1) === 1
+@test f1090(2) === 2
+g1090{T}(x::T)::T = x+1.0
+@test g1090(1) === 2
+@test g1090(Float32(3)) === Float32(4)

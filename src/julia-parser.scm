@@ -944,11 +944,16 @@
         (parse-resword s ex)
         (parse-call-chain s ex #f))))
 
-(define (parse-def s strict)
+(define (parse-def s is-func)
   (let ((ex (parse-unary-prefix s)))
-    (if (or (and strict (reserved-word? ex)) (initial-reserved-word? ex))
-        (error (string "invalid name \"" ex "\""))
-        (parse-call-chain s ex #f))))
+    (let ((sig (if (or (and is-func (reserved-word? ex)) (initial-reserved-word? ex))
+                   (error (string "invalid name \"" ex "\""))
+                   (parse-call-chain s ex #f))))
+      (if (and is-func
+               (eq? (peek-token s) '|::|))
+          (begin (take-token s)
+                 `(|::| ,sig ,(parse-call s)))
+          sig))))
 
 
 (define (deprecated-dict-replacement ex)
@@ -1178,7 +1183,10 @@
                                     (error (string "expected \"(\" in " word " definition")))
                                 (if (not (and (pair? sig)
                                               (or (eq? (car sig) 'call)
-                                                  (eq? (car sig) 'tuple))))
+                                                  (eq? (car sig) 'tuple)
+                                                  (and (eq? (car sig) '|::|)
+                                                       (pair? (cadr sig))
+                                                       (eq? (car (cadr sig)) 'call)))))
                                     (error (string "expected \"(\" in " word " definition"))
                                     sig)))
                      (loc   (begin (if (not (eq? (peek-token s) 'end))

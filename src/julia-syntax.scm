@@ -155,7 +155,7 @@
 
 ;; GF method does not need to keep decl expressions on lambda args
 ;; except for rest arg
-(define (method-lambda-expr argl body)
+(define (method-lambda-expr argl body rett)
   (let ((argl (map (lambda (x)
                      (if (vararg? x)
                          (make-decl (arg-name x) (arg-type x))
@@ -164,9 +164,21 @@
                                  x
                                  `(|::| ,(arg-name x) (curly Vararg Any)))
                              (arg-name x))))
-                   argl)))
+                   argl))
+        (body (if (and (pair? body) (eq? (car body) 'block))
+                  (if (null? (cdr body))
+                      `(block (null))
+                      body)
+                  `(block ,body))))
     `(lambda ,argl ()
-             (scope-block ,body))))
+             (scope-block
+              ,(if (eq? rett 'Any)
+                   body
+                   (insert-after-meta
+                    body
+                    (let ((R (make-ssavalue)))
+                      (list `(= ,R ,rett)
+                            `(ret-type ,R)))))))))
 
 ;; convert list of names (sl) and list of upper bounds to expressions that
 ;; construct TypeVars
@@ -269,7 +281,7 @@
 
 ;; construct the (method ...) expression for one primitive method definition,
 ;; assuming optional and keyword args are already handled
-(define (method-def-expr- name sparams argl body isstaged)
+(define (method-def-expr- name sparams argl body isstaged (rett 'Any))
   (if
    (any kwarg? argl)
    ;; has optional positional args
@@ -289,7 +301,7 @@
         (receive
          (vararg req) (separate vararg? argl)
          (optional-positional-defs name sparams req opt dfl body isstaged
-                                   (append req opt vararg))))))
+                                   (append req opt vararg) rett)))))
    ;; no optional positional args
    (receive
     (names bounds) (sparam-name-bounds sparams '() '())
@@ -306,7 +318,7 @@
       (let* ((iscall (is-call-name? name))
              (name  (if iscall #f name))
              (types (llist-types argl))
-             (body  (method-lambda-expr argl body))
+             (body  (method-lambda-expr argl body rett))
              ;; HACK: the typevars need to be bound to ssavalues, since this code
              ;; might be moved to a different scope by closure-convert.
              (temps (map (lambda (x) (make-ssavalue)) names))
@@ -343,7 +355,7 @@
   (or (number? x) (string? x) (char? x) (and (pair? x) (memq (car x) '(quote inert)))
       (eq? x 'true) (eq? x 'false)))
 
-(define (keywords-method-def-expr name sparams argl body isstaged)
+(define (keywords-method-def-expr name sparams argl body isstaged rett)
   (let* ((kargl (cdar argl))  ;; keyword expressions (= k v)
          (pargl (cdr argl))   ;; positional args
          (body  (if (and (pair? body) (eq? (car body) 'block))
@@ -441,7 +453,7 @@
 		    (else
 		     ;; TODO jb/functions get a better `name` for functions specified by type
 		     (list (append (car lno) (list (undot-name name))))))
-            ,@stmts) isstaged)
+            ,@stmts) isstaged rett)
 
         ;; call with unsorted keyword args. this sorts and re-dispatches.
         ,(method-def-expr-
@@ -525,7 +537,7 @@
         ,(if (or (not (symbol? name)) (is-call-name? name))
              '(null) name)))))
 
-(define (optional-positional-defs name sparams req opt dfl body isstaged overall-argl)
+(define (optional-positional-defs name sparams req opt dfl body isstaged overall-argl rett)
   ;; prologue includes line number node and eventual meta nodes
   (let ((prologue (if (pair? body)
                       (take-while (lambda (e)
@@ -565,7 +577,7 @@
                              (call ,(arg-name (car req)) ,@(map arg-name (cdr passed)) ,@vals)))))
                  (method-def-expr- name sp passed body #f)))
              (iota (length opt)))
-      ,(method-def-expr- name sparams overall-argl body isstaged))))
+      ,(method-def-expr- name sparams overall-argl body isstaged rett))))
 
 ;; strip empty (parameters ...), normalizing `f(x;)` to `f(x)`.
 (define (remove-empty-parameters argl)
@@ -593,14 +605,14 @@
 ;; definitions without keyword arguments are passed to method-def-expr-,
 ;; which handles optional positional arguments by adding the needed small
 ;; boilerplate definitions.
-(define (method-def-expr name sparams argl body isstaged)
+(define (method-def-expr name sparams argl body isstaged rett)
   (let ((argl (remove-empty-parameters argl)))
     (if (has-parameters? argl)
         ;; has keywords
         (begin (check-kw-args (cdar argl))
-               (keywords-method-def-expr name sparams argl body isstaged))
+               (keywords-method-def-expr name sparams argl body isstaged rett))
         ;; no keywords
-        (method-def-expr- name sparams argl body isstaged))))
+        (method-def-expr- name sparams argl body isstaged rett))))
 
 (define (struct-def-expr name params super fields mut)
   (receive
@@ -880,7 +892,10 @@
                       (list* g (if isamp `(& ,ca) ca) C))))))))
 
 (define (expand-function-def e)   ;; handle function or stagedfunction
-  (let ((name (cadr e)))
+  (let* ((name (cadr e))
+         (dcl  (and (pair? name) (eq? (car name) '|::|)))
+         (rett (if dcl (caddr name) 'Any))
+         (name (if dcl (cadr name) name)))
     (cond ((and (length= e 2) (symbol? name))
 	   (if (or (eq? name 'true) (eq? name 'false))
 	       (error (string "invalid function name \"" name "\"")))
@@ -911,7 +926,7 @@
                                                                    (eq? (caar argl) 'parameters))))))
                   (name    (if (decl? name) #f name)))
              (expand-forms
-              (method-def-expr name sparams argl (caddr e) isstaged))))
+              (method-def-expr name sparams argl (caddr e) isstaged rett))))
           (else e))))
 
 ;; handle ( )->( ) function expressions. blocks `(a;b=1)` on the left need to be
@@ -1568,7 +1583,10 @@
      (define lhs (cadr e))
      (cond
       ((and (pair? lhs)
-            (eq? (car lhs) 'call))
+            (or (eq? (car lhs) 'call)
+                (and (eq? (car lhs) '|::|)
+                     (pair? (cadr lhs))
+                     (eq? (car (cadr lhs)) 'call))))
        (expand-forms (cons 'function (cdr e))))
       ((and (pair? lhs)
             (eq? (car lhs) 'comparison)
@@ -2941,6 +2959,7 @@ f(x) = yt(x)
 ;; only possible returned values.
 (define (compile-body e vi lam)
   (let ((code '())
+        (rett #f)
         (label-counter 0)     ;; counter for generating label addresses
         (label-map (table))   ;; maps label names to generated addresses
         (label-level (table)) ;; exception handler level of each label
@@ -2960,13 +2979,16 @@ f(x) = yt(x)
             (mark-label l)
             l)))
     (define (emit-return x)
-      (if (> handler-level 0)
-          (let ((tmp (if (or (simple-atom? x) (ssavalue? x) (equal? x '(null)))
-                         #f (make-ssavalue))))
-            (if tmp (emit `(= ,tmp ,x)))
-            (emit `(leave ,handler-level))
-            (emit `(return ,(or tmp x))))
-          (emit `(return ,x))))
+      (let ((rv (if (> handler-level 0)
+                    (let ((tmp (if (or (simple-atom? x) (ssavalue? x) (equal? x '(null)))
+                                   #f (make-ssavalue))))
+                      (if tmp (emit `(= ,tmp ,x)))
+                      (emit `(leave ,handler-level))
+                      (or tmp x))
+                    x)))
+        (if rett
+            (emit `(return ,(convert-for-type-decl rv rett)))
+            (emit `(return ,rv)))))
     (define (new-mutable-var)
       (let ((g (gensy)))
         (set-car! (lam:vinfo lam) (append (car (lam:vinfo lam)) `((,g Any 2))))
@@ -3176,6 +3198,11 @@ f(x) = yt(x)
                (if tail
                    (emit-return temp)
                    (emit temp))))
+
+            ((ret-type)
+             (assert (not value))
+             (assert (not rett))
+             (set! rett (cadr e)))
 
             ((&)
              (assert (and value (not tail)))
