@@ -61,10 +61,8 @@ end
 # Worker initialization messages
 type IdentifySocketMsg <: AbstractMsg
     from_pid::Int
-    cookie::AbstractString
 end
 type IdentifySocketAckMsg <: AbstractMsg
-    cookie::AbstractString
 end
 type JoinPGRPMsg <: AbstractMsg
     self_pid::Int
@@ -72,13 +70,11 @@ type JoinPGRPMsg <: AbstractMsg
     notify_oid::RRID
     topology::Symbol
     worker_pool
-    cookie::AbstractString
 end
 type JoinCompleteMsg <: AbstractMsg
     notify_oid::RRID
     cpu_cores::Int
     ospid::Int
-    cookie::AbstractString
 end
 
 
@@ -163,19 +159,22 @@ type Worker
     w_stream::IO
     manager::ClusterManager
     config::WorkerConfig
+    version::Nullable{VersionNumber}  # Julia version of the remote process
 
-    function Worker(id, r_stream, w_stream, manager, config)
+    function Worker(id::Int, r_stream::IO, w_stream::IO, manager::ClusterManager;
+                                version=Nullable{VersionNumber}(), config=WorkerConfig())
         w = Worker(id)
         w.r_stream = r_stream
         w.w_stream = buffer_writes(w_stream)
         w.manager = manager
         w.config = config
+        w.version = version
         set_worker_state(w, W_CONNECTED)
         register_worker_streams(w)
         w
     end
 
-    function Worker(id)
+    function Worker(id::Int)
         if haskey(map_pid_wrkr, id)
             return map_pid_wrkr[id]
         end
@@ -186,8 +185,6 @@ type Worker
 
     Worker() = Worker(get_next_pid())
 end
-
-Worker(id, r_stream, w_stream, manager) = Worker(id, r_stream, w_stream, manager, WorkerConfig())
 
 function set_worker_state(w, state)
     w.state = state
@@ -269,6 +266,19 @@ function flush_gc_msgs()
     end
 end
 
+function send_connection_hdr(w::Worker, cookie=true)
+    # For a connection initiated from the remote side to us, we only send the version,
+    # else, when we initiate a connection we send both our version and the cookie.
+    # The remote side validates the cookie.
+
+    if cookie
+        write(w.w_stream, LPROC.cookie)
+    else
+        write(w.w_stream, rpad("", HDR_COOKIE_LEN))
+    end
+    write(w.w_stream, rpad(VERSION_STRING, HDR_VERSION_LEN)[1:HDR_VERSION_LEN])
+end
+
 ## process group creation ##
 
 type LocalProcess
@@ -281,8 +291,19 @@ end
 
 const LPROC = LocalProcess()
 
+const HDR_VERSION_LEN=16
+const HDR_COOKIE_LEN=16
 cluster_cookie() = LPROC.cookie
-cluster_cookie(cookie) = (LPROC.cookie = cookie; cookie)
+function cluster_cookie(cookie)
+    # The cookie must be an ASCII string with length <=  HDR_COOKIE_LEN
+    assert(isascii(cookie))
+    assert(length(cookie) <= HDR_COOKIE_LEN)
+
+    cookie = rpad(cookie, HDR_COOKIE_LEN)
+
+    LPROC.cookie = cookie
+    cookie
+end
 
 const map_pid_wrkr = Dict{Int, Union{Worker, LocalProcess}}()
 const map_sock_wrkr = ObjectIdDict()
@@ -956,40 +977,39 @@ function deliver_result(sock::IO, msg, oid, value)
 end
 
 ## message event handlers ##
-process_messages(r_stream::TCPSocket, w_stream::TCPSocket) = @schedule process_tcp_streams(r_stream, w_stream)
+process_messages(r_stream::TCPSocket, w_stream::TCPSocket, incoming=true) = @schedule process_tcp_streams(r_stream, w_stream, incoming)
 
-function process_tcp_streams(r_stream::TCPSocket, w_stream::TCPSocket)
+function process_tcp_streams(r_stream::TCPSocket, w_stream::TCPSocket, incoming)
         disable_nagle(r_stream)
         wait_connected(r_stream)
         if r_stream != w_stream
             disable_nagle(w_stream)
             wait_connected(w_stream)
         end
-        message_handler_loop(r_stream, w_stream)
+        message_handler_loop(r_stream, w_stream, incoming)
 end
 
-process_messages(r_stream::IO, w_stream::IO) = @schedule message_handler_loop(r_stream, w_stream)
+process_messages(r_stream::IO, w_stream::IO, incoming=true) = @schedule message_handler_loop(r_stream, w_stream, incoming)
 
-function message_handler_loop(r_stream::IO, w_stream::IO)
+type InvalidCredentials <: Exception end
+
+function message_handler_loop(r_stream::IO, w_stream::IO, incoming::Bool)
     try
-        # Check for a valid first message with a cookie.
-        msg = deserialize(r_stream)
-        if !any(x->isa(msg, x), [JoinPGRPMsg, JoinCompleteMsg, IdentifySocketMsg, IdentifySocketAckMsg]) ||
-                (msg.cookie != cluster_cookie())
-
-            println(STDERR, "Unknown first message $(typeof(msg)) or cookie mismatch.")
-            error("Invalid connection credentials.")
-        end
-
+        version = process_hdr(r_stream, incoming)
         while true
-            handle_msg(msg, r_stream, w_stream)
             msg = deserialize(r_stream)
             # println("got msg: ", msg)
+            handle_msg(msg, r_stream, w_stream, version)
         end
     catch e
+        # println(STDERR, "Process($(myid())) - Exception ", e)
         iderr = worker_id_from_socket(r_stream)
         if (iderr < 1)
-            println(STDERR, "Socket from unknown remote worker in worker $(myid())")
+            if isa(e, InvalidCredentials)
+                println(STDERR, "Process($(myid())) - Invalid connection credentials sent by remote.")
+            else
+                println(STDERR, "Process($(myid())) - Unknown remote.")
+            end
         else
             werr = worker_from_id(iderr)
             oldstate = werr.state
@@ -1024,33 +1044,53 @@ function message_handler_loop(r_stream::IO, w_stream::IO)
     end
 end
 
-handle_msg(msg::CallMsg{:call}, r_stream, w_stream) = schedule_call(msg.response_oid, ()->msg.f(msg.args...; msg.kwargs...))
-function handle_msg(msg::CallMsg{:call_fetch}, r_stream, w_stream)
+function process_hdr(s, validate_cookie)
+    cookie = read(s, HDR_COOKIE_LEN)
+    if validate_cookie
+        self_cookie = cluster_cookie()
+        for i in 1:HDR_COOKIE_LEN
+            if UInt8(self_cookie[i]) != cookie[i]
+                throw(InvalidCredentials())
+            end
+        end
+    end
+    ver = read(s, HDR_VERSION_LEN)
+    return VersionNumber(strip(bytestring(ver)))
+end
+
+
+handle_msg(msg::CallMsg{:call}, r_stream, w_stream, version) = schedule_call(msg.response_oid, ()->msg.f(msg.args...; msg.kwargs...))
+function handle_msg(msg::CallMsg{:call_fetch}, r_stream, w_stream, version)
     @schedule begin
         v = run_work_thunk(()->msg.f(msg.args...; msg.kwargs...), false)
         deliver_result(w_stream, :call_fetch, msg.response_oid, v)
     end
 end
 
-function handle_msg(msg::CallWaitMsg, r_stream, w_stream)
+function handle_msg(msg::CallWaitMsg, r_stream, w_stream, version)
     @schedule begin
         rv = schedule_call(msg.response_oid, ()->msg.f(msg.args...; msg.kwargs...))
         deliver_result(w_stream, :call_wait, msg.notify_oid, fetch(rv.c))
     end
 end
 
-handle_msg(msg::RemoteDoMsg, r_stream, w_stream) = @schedule run_work_thunk(()->msg.f(msg.args...; msg.kwargs...), true)
+handle_msg(msg::RemoteDoMsg, r_stream, w_stream, version) = @schedule run_work_thunk(()->msg.f(msg.args...; msg.kwargs...), true)
 
-handle_msg(msg::ResultMsg, r_stream, w_stream) = put!(lookup_ref(msg.response_oid), msg.value)
+handle_msg(msg::ResultMsg, r_stream, w_stream, version) = put!(lookup_ref(msg.response_oid), msg.value)
 
-function handle_msg(msg::IdentifySocketMsg, r_stream, w_stream)
+function handle_msg(msg::IdentifySocketMsg, r_stream, w_stream, version)
     # register a new peer worker connection
-    w=Worker(msg.from_pid, r_stream, w_stream, cluster_manager)
-    send_msg_now(w, IdentifySocketAckMsg(cluster_cookie()))
+    w=Worker(msg.from_pid, r_stream, w_stream, cluster_manager; version=version)
+    send_connection_hdr(w, false)
+    send_msg_now(w, IdentifySocketAckMsg())
 end
-handle_msg(msg::IdentifySocketAckMsg, r_stream, w_stream) = nothing
 
-function handle_msg(msg::JoinPGRPMsg, r_stream, w_stream)
+function handle_msg(msg::IdentifySocketAckMsg, r_stream, w_stream, version)
+    w = map_sock_wrkr[r_stream]
+    w.version = version
+end
+
+function handle_msg(msg::JoinPGRPMsg, r_stream, w_stream, version)
     LPROC.id = msg.self_pid
     controller = Worker(1, r_stream, w_stream, cluster_manager)
     register_worker(LPROC)
@@ -1070,16 +1110,17 @@ function handle_msg(msg::JoinPGRPMsg, r_stream, w_stream)
     for wt in wait_tasks; wait(wt); end
 
     set_default_worker_pool(msg.worker_pool)
-
-    send_msg_now(controller, JoinCompleteMsg(msg.notify_oid, Sys.CPU_CORES, getpid(), cluster_cookie()))
+    send_connection_hdr(controller, false)
+    send_msg_now(controller, JoinCompleteMsg(msg.notify_oid, Sys.CPU_CORES, getpid()))
 end
 
 function connect_to_peer(manager::ClusterManager, rpid::Int, wconfig::WorkerConfig)
     try
         (r_s, w_s) = connect(manager, rpid, wconfig)
-        w = Worker(rpid, r_s, w_s, manager, wconfig)
-        process_messages(w.r_stream, w.w_stream)
-        send_msg_now(w, IdentifySocketMsg(myid(), cluster_cookie()))
+        w = Worker(rpid, r_s, w_s, manager; config=wconfig)
+        process_messages(w.r_stream, w.w_stream, false)
+        send_connection_hdr(w, true)
+        send_msg_now(w, IdentifySocketMsg(myid()))
     catch e
         display_error(e, catch_backtrace())
         println(STDERR, "Error [$e] on $(myid()) while connecting to peer $rpid. Exiting.")
@@ -1087,12 +1128,13 @@ function connect_to_peer(manager::ClusterManager, rpid::Int, wconfig::WorkerConf
     end
 end
 
-function handle_msg(msg::JoinCompleteMsg, r_stream, w_stream)
+function handle_msg(msg::JoinCompleteMsg, r_stream, w_stream, version)
     w = map_sock_wrkr[r_stream]
     environ = get(w.config.environ, Dict())
     environ[:cpu_cores] = msg.cpu_cores
     w.config.environ = environ
     w.config.ospid = msg.ospid
+    w.version = version
 
     ntfy_channel = lookup_ref(msg.notify_oid)
     put!(ntfy_channel, w.id)
@@ -1132,7 +1174,7 @@ function start_worker(out::IO, cookie::AbstractString)
     end
     @schedule while isopen(sock)
         client = accept(sock)
-        process_messages(client, client)
+        process_messages(client, client, true)
     end
     print(out, "julia_worker:")  # print header
     print(out, "$(dec(LPROC.bind_port))#") # print port
@@ -1361,7 +1403,7 @@ function create_worker(manager, wconfig)
     w = Worker()
 
     (r_s, w_s) = connect(manager, w.id, wconfig)
-    w = Worker(w.id, r_s, w_s, manager, wconfig)
+    w = Worker(w.id, r_s, w_s, manager; config=wconfig)
     # install a finalizer to perform cleanup if necessary
     finalizer(w, (w)->if myid() == 1 manage(w.manager, w.id, w.config, :finalize) end)
 
@@ -1372,7 +1414,7 @@ function create_worker(manager, wconfig)
 
     # Start a new task to handle inbound messages from connected worker in master.
     # Also calls `wait_connected` on TCP streams.
-    process_messages(w.r_stream, w.w_stream)
+    process_messages(w.r_stream, w.w_stream, false)
 
     # send address information of all workers to the new worker.
     # Cluster managers set the address of each worker in `WorkerConfig.connect_at`.
@@ -1415,7 +1457,8 @@ function create_worker(manager, wconfig)
     end
 
     all_locs = map(x -> isa(x, Worker) ? (get(x.config.connect_at, ()), x.id) : ((), x.id, true), join_list)
-    send_msg_now(w, JoinPGRPMsg(w.id, all_locs, ntfy_oid, PGRP.topology, default_worker_pool(), cluster_cookie()))
+    send_connection_hdr(w, true)
+    send_msg_now(w, JoinPGRPMsg(w.id, all_locs, ntfy_oid, PGRP.topology, default_worker_pool()))
 
     @schedule manage(w.manager, w.id, w.config, :register)
     wait(rr_ntfy_join)
