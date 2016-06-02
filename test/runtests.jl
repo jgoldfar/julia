@@ -10,12 +10,7 @@ if compile_test
     splice!(tests, findfirst(tests, "compile"))
 end
 
-# boundscheck test handled specially because it should be run without
-# --check-bounds=yes
 boundscheck_test = "boundscheck" in tests
-if boundscheck_test
-    splice!(tests, findfirst(tests, "boundscheck"))
-end
 
 cd(dirname(@__FILE__)) do
     n = 1
@@ -76,11 +71,14 @@ cd(dirname(@__FILE__)) do
         runtests("compile")
     end
 
+    # also run boundscheck test with --check-bounds=default and --check-bounds=no
     if boundscheck_test
-        p = addprocs(1)[1]
-        remotecall_fetch(()->include("testdefs.jl"), p)
-        resp = remotecall_fetch(() -> runtests("boundscheck"), p)
-        push!(results, ("boundscheck", resp))
+        procs = [addprocs(1)[1], addprocs(1; exeflags=`--check-bounds=no`)[1]]
+        for p in procs
+            remotecall_fetch(()->include("testdefs.jl"), p)
+            resp = remotecall_fetch(() -> runtests("boundscheck"), p)
+            push!(results, ("boundscheck", resp))
+        end
     end
 
     is_unix() && n > 1 && rmprocs(workers(), waitfor=5.0)
