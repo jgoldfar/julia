@@ -193,10 +193,32 @@ function showerror(io::IO, ex::TypeError)
 end
 
 function showerror(io::IO, ex, bt; backtrace=true)
-    try
-        showerror(io, ex)
-    finally
-        backtrace && show_backtrace(io, bt)
+    if get(io, :REPLError, false)
+        if backtrace
+            io_bt = IOBuffer()
+            io_bt_con = IOContext(io_bt, io)
+            show_backtrace(io_bt_con, bt)
+            backtrace_str = takebuf_string(io_bt)
+            # Only print the backtrace header if there actually is a printed backtrace
+            if backtrace_str != ""
+                header = string(typeof(ex).name.name, " ")
+                line_len = min(90, Base.Terminals.width(Base.active_repl.t))
+                print_with_color(default_color_warn, io, "-"^line_len * "\n", header)
+                print(io, lpad("Stacktrace (most recent call last)", line_len - strwidth(header), ' '))
+                print(io, backtrace_str, "\n")
+            end
+        end
+        try
+            Base.with_output_color(default_color_warn, io) do io
+                showerror(io, ex)
+            end
+        end
+    else
+        try
+            showerror(io, ex)
+        finally
+            backtrace && show_backtrace(io, bt)
+        end
     end
 end
 
@@ -563,12 +585,13 @@ function show_trace_entry(io, frame, n)
     print(io, "\n")
     show(io, frame, full_path=true)
     n > 1 && print(io, " (repeats ", n, " times)")
+    get(io, :REPLError, false) && println(io)
 end
 
 function show_backtrace(io::IO, t::Vector)
     process_entry(last_frame, n) =
         show_trace_entry(io, last_frame, n)
-    process_backtrace(process_entry, t)
+    process_backtrace(process_entry, t, rev  = get(io, :REPLError, false))
 end
 
 function show_backtrace(io::IO, t::Vector{Any})
@@ -578,13 +601,13 @@ function show_backtrace(io::IO, t::Vector{Any})
 end
 
 # call process_func on each frame in a backtrace
-function process_backtrace(process_func::Function, t::Vector, limit::Int=typemax(Int); skipC = true)
+function process_backtrace(process_func::Function, t::Vector, limit::Int=typemax(Int); skipC = true, rev = false)
     n = 0
     last_frame = StackTraces.UNKNOWN
     count = 0
-    for i = eachindex(t)
+    for i = (rev ? reverse(eachindex(t)) : eachindex(t))
         lkups = StackTraces.lookup(t[i])
-        for lkup in lkups
+        for lkup in (rev ? reverse(lkups) : lkups)
             if lkup === StackTraces.UNKNOWN
                 continue
             end

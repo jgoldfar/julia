@@ -14,6 +14,7 @@ const text_colors = AnyDict(
     :white   => "\033[1m\033[37m",
     :normal  => "\033[0m",
     :bold    => "\033[1m",
+    :nothing => "",
 )
 
 # Create a docstring with an automatically generated list
@@ -30,7 +31,8 @@ const available_text_colors_docstring =
 
 """Dictionary of color codes for the terminal.
 
-Available colors are: $available_text_colors_docstring.
+Available colors are: $available_text_colors_docstring. Printing with the color `:nothing`
+will simply print the string without modifications.
 """
 text_colors
 
@@ -55,6 +57,8 @@ warn_color()   = repl_color("JULIA_WARN_COLOR", default_color_warn)
 info_color()   = repl_color("JULIA_INFO_COLOR", default_color_info)
 input_color()  = text_colors[repl_color("JULIA_INPUT_COLOR", default_color_input)]
 answer_color() = text_colors[repl_color("JULIA_ANSWER_COLOR", default_color_answer)]
+err_linfo_color()   = repl_color("JULIA_ERR_LINFO_COLOR", :bold)
+err_funcdef_color() = repl_color("JULIA_ERR_FUNCDEF_COLOR", :bold)
 
 function repl_cmd(cmd, out)
     shell = shell_split(get(ENV,"JULIA_SHELL",get(ENV,"SHELL","/bin/sh")))
