@@ -111,7 +111,7 @@ function ip_matches_func(ip, func::Symbol)
 end
 
 function display_error(io::IO, er, bt)
-    legacy_errs = haskey(ENV, "LEGACY_ERRORS")
+    legacy_errs = haskey(ENV, "JULIA_LEGACY_ERRORS")
     Base.with_output_color(legacy_errs ? :red : :nothing, io) do io
         # remove REPL-related frames from interactive printing
         legacy_errs && print(io, "ERROR: ")

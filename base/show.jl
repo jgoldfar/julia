@@ -1053,13 +1053,13 @@ function show_lambda_types(io::IO, li::Core.MethodInstance)
     returned_from_do && return
     first = true
     print_style = isreplerror ? :bold : :nothing
-    print_with_color(print_style io, "(")
+    print_with_color(print_style, io, "(")
     for i = 2:length(sig)  # fixme (iter): `eachindex` with offset?
         first || print(io, ", ")
         first = false
         print(io, "::", sig[i])
     end
-    print_with_color(print_style io, ")")
+    print_with_color(print_style, io, ")")
     nothing
 end
 

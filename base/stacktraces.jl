@@ -188,7 +188,7 @@ function show_spec_linfo(io::IO, frame::StackFrame)
         if frame.func === empty_sym
             @printf(io, "ip:%#x", frame.pointer)
         else
-            print(io, frame.func)
+            print_with_color(get(io, :REPLError, false) ? :bold : :nothing, io, string(frame.func))
         end
     else
         linfo = get(frame.linfo)
@@ -202,11 +202,10 @@ end
 
 function show(io::IO, frame::StackFrame; full_path::Bool=false)
     isreplerror = get(io, :REPLError, false)
-    isreplerror ? print_with_color(:bold, io, " — ") : print(io, " in ")
+    print(io, isreplerror ? " ─ " : " in ")
     show_spec_linfo(io, frame)
     if frame.file !== empty_sym
         file_info = full_path ? string(frame.file) : basename(string(frame.file))
-        isreplerror && print(io, "\n    ⌙")
         print(io, " at ")
         Base.with_output_color(isreplerror ? Base.err_linfo_color() : :nothing, io) do io
             print(io, file_info, ":")

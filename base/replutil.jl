@@ -193,7 +193,7 @@ function showerror(io::IO, ex::TypeError)
 end
 
 function showerror(io::IO, ex, bt; backtrace=true)
-    if get(io, :REPLError, false)
+   if get(io, :REPLError, false)
         if backtrace
             io_bt = IOBuffer()
             io_bt_con = IOContext(io_bt, io)
@@ -201,11 +201,12 @@ function showerror(io::IO, ex, bt; backtrace=true)
             backtrace_str = takebuf_string(io_bt)
             # Only print the backtrace header if there actually is a printed backtrace
             if backtrace_str != ""
-                header = string(typeof(ex).name.name, " ")
-                line_len = min(90, Base.Terminals.width(Base.active_repl.t))
-                print_with_color(default_color_warn, io, "-"^line_len * "\n", header)
-                print(io, lpad("Stacktrace (most recent call last)", line_len - strwidth(header), ' '))
-                print(io, backtrace_str, "\n")
+                header = string("────── ", typeof(ex).name.name, " ")
+                stacktrace_str = " Stacktrace (most recent call last)"
+                line_len = min(75, Base.Terminals.width(Base.active_repl.t))
+                print_with_color(default_color_warn, io, header, "─"^(line_len - strwidth(header) - strwidth(stacktrace_str)))
+                print(io, stacktrace_str, "\n")
+                print(io, backtrace_str)
             end
         end
         try
@@ -582,15 +583,28 @@ function show_method_candidates(io::IO, ex::MethodError, kwargs::Vector=Any[])
 end
 
 function show_trace_entry(io, frame, n)
-    print(io, "\n")
+    !get(io, :REPLError, false) && println(io)
     show(io, frame, full_path=true)
     n > 1 && print(io, " (repeats ", n, " times)")
     get(io, :REPLError, false) && println(io)
 end
 
 function show_backtrace(io::IO, t::Vector)
-    process_entry(last_frame, n) =
-        show_trace_entry(io, last_frame, n)
+    if get(io, :REPLError, false)
+        stack_counter = 0
+        process_entry = (last_frame, n) -> begin
+            stack_counter += 1
+            print(io, " [")
+            print_with_color(:bold, io, "$(stack_counter)")
+            print(io, "]")
+            show_trace_entry(io, last_frame, n)
+            println(io)
+        end
+    else
+        process_entry = (last_frame, n) -> show_trace_entry(io, last_frame, n)
+    end
+
+
     process_backtrace(process_entry, t, rev  = get(io, :REPLError, false))
 end
 
