@@ -13,7 +13,8 @@ dictionary operations such as [`getindex`](@ref), and can also be used as an I/O
 immutable IOContext{IO_t <: IO} <: AbstractPipe
     io::IO_t
     dict::ImmutableDict{Symbol, Any}
-    function IOContext(io::IO_t, dict::ImmutableDict{Symbol, Any})
+
+    function IOContext{IO_t}(io::IO_t, dict::ImmutableDict{Symbol, Any}) where IO_t<:IO
         assert(!(IO_t <: IOContext))
         return new(io, dict)
     end

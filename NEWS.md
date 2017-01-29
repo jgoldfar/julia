@@ -20,6 +20,18 @@ New language features
 Language changes
 ----------------
 
+  * "Inner constructor" syntax for parametric types is deprecated. For example,
+    in this definition:
+    ```
+    type Foo{T}
+        x
+        Foo(x) = new(x)
+    end
+    ```
+    the syntax `Foo(x) = new(x)` actually defined a constructor for `Foo{T}`,
+    i.e. the case where the type parameter is specified. For clarity, this
+    definition now must be written as `Foo{T}(x) where T = new(x)`. ([#11310])
+
   * Multi-line and single-line nonstandard command literals have been added. A
     nonstandard command literal is like a nonstandard string literal, but the
     syntax uses backquotes (``` ` ```) instead of double quotes, and the
