@@ -19,12 +19,21 @@ getindex{T}(t::Tuple, r::AbstractArray{T,1}) = tuple([t[ri] for ri in r]...)
 getindex(t::Tuple, b::AbstractArray{Bool,1}) = length(b) == length(t) ? getindex(t,find(b)) : throw(BoundsError(t, b))
 
 # returns new tuple; N.B.: becomes no-op if i is out-of-bounds
-setindex(x::Tuple, v, i::Integer) = _setindex((), x, v, i::Integer)
+setindex(x::Tuple, v, i::Integer) = _setindex((), x, v, i::Integer)::setindex_t(typeof.(x), typeof(v))
 function _setindex(y::Tuple, r::Tuple, v, i::Integer)
     @_inline_meta
     _setindex((y..., ifelse(length(y) + 1 == i, v, first(r))), tail(r), v, i)
 end
 _setindex(y::Tuple, r::Tuple{}, v, i::Integer) = y
+function setindex_t(Tx::Tuple, Tv)
+    @_pure_meta
+    # assumes that == for the Integer passed to setindex is well-behaved and is true for at most one index
+    ret = Tuple{Tx...}
+    for i in 1:length(Tx)
+        ret = Union{ret, Tuple{(Tx[j] for j in 1:i-1)..., Tv, (Tx[j] for j in i+1:length(Tx))...}}
+    end
+    return ret
+end
 
 ## iterating ##
 
