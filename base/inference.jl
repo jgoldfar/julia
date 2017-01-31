@@ -1403,7 +1403,19 @@ function precise_container_types(args, types, vtypes::VarTable, sv)
                 return nothing
             end
         elseif isa(tti, Union)
-            return nothing
+            utis = uniontypes(tti)
+            if _any(t -> !isa(t,DataType) || !(t <: Tuple) || !isknownlength(t), utis)
+                return nothing
+            end
+            result[i] = Any[Union{} for j in 1:length(utis[1].parameters)]
+            for t in utis
+                if length(t.parameters) != length(result[i])
+                    return nothing
+                end
+                for j in 1:length(t.parameters)
+                    result[i][j] = tmerge(result[i][j], t.parameters[j])
+                end
+            end
         elseif isa(tti,DataType) && tti <: Tuple
             if i == n
                 if isvatuple(tti) && length(tti.parameters) == 1
@@ -1425,22 +1437,43 @@ function precise_container_types(args, types, vtypes::VarTable, sv)
     return result
 end
 
+function uniontypes_prod(types::Vector{Any})
+    if mapreduce(unionlen, *, 1, types) > 7
+        return [types]
+    end
+    tp = [Any[]]
+    for i = 1:length(types)
+        uts = uniontypes(types[i])
+        tpnew = Vector{Any}[]
+        for tv in tp, t in uts
+            push!(tpnew, push!(copy(tv), t))
+        end
+        tp = tpnew
+    end
+    return tp
+end
+
 # do apply(af, fargs...), where af is a function value
 function abstract_apply(af::ANY, fargs, aargtypes::Vector{Any}, vtypes::VarTable, sv)
-    ctypes = precise_container_types(fargs, aargtypes, vtypes, sv)
-    if ctypes !== nothing
-        # apply with known func with known tuple types
-        # can be collapsed to a call to the applied func
-        at = append_any(Any[Const(af)], ctypes...)
-        n = length(at)
-        if n-1 > sv.params.MAX_TUPLETYPE_LEN
-            tail = foldl((a,b)->tmerge(a,unwrapva(b)), Bottom, at[sv.params.MAX_TUPLETYPE_LEN+1:n])
-            at = vcat(at[1:sv.params.MAX_TUPLETYPE_LEN], Any[Vararg{widenconst(tail)}])
+    res = Union{}
+    for eaargtypes in uniontypes_prod(aargtypes)
+        ctypes = precise_container_types(fargs, eaargtypes, vtypes, sv)
+        if ctypes === nothing
+            # apply known function with unknown args => f(Any...)
+            res = tmerge(res, abstract_call(af, (), Any[Const(af), Vararg{Any}], vtypes, sv))
+        else
+            # apply with known func with known tuple types
+            # can be collapsed to a call to the applied func
+            at = append_any(Any[Const(af)], ctypes...)
+            n = length(at)
+            if n-1 > sv.params.MAX_TUPLETYPE_LEN
+                tail = foldl((a,b)->tmerge(a,unwrapva(b)), Bottom, at[sv.params.MAX_TUPLETYPE_LEN+1:n])
+                at = vcat(at[1:sv.params.MAX_TUPLETYPE_LEN], Any[Vararg{widenconst(tail)}])
+            end
+            res = tmerge(res, abstract_call(af, (), at, vtypes, sv))
         end
-        return abstract_call(af, (), at, vtypes, sv)
     end
-    # apply known function with unknown args => f(Any...)
-    return abstract_call(af, (), Any[Const(af), Vararg{Any}], vtypes, sv)
+    return res
 end
 
 function return_type_tfunc(argtypes::ANY, vtypes::VarTable, sv::InferenceState)
