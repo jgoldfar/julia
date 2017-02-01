@@ -482,7 +482,7 @@ struct jl_cgval_t {
         assert(jl_is_datatype(typ));
         assert(constant);
     }
-    jl_cgval_t(const jl_cgval_t &v, jl_value_t *typ, Value *tindex, bool dummy) : // copy constructor with new type
+    jl_cgval_t(const jl_cgval_t &v, jl_value_t *typ, Value *tindex) : // copy constructor with new type
         V(v.V),
         TIndex(tindex),
         constant(v.constant),
@@ -932,7 +932,7 @@ static inline jl_cgval_t remark_julia_type(const jl_cgval_t &v, jl_value_t *typ,
             }
         }
     }
-    return jl_cgval_t(v, typ, ptindex, true);
+    return jl_cgval_t(v, typ, ptindex);
 }
 
 // Snooping on which functions are being compiled, and how long it takes
@@ -2343,17 +2343,17 @@ static Value *emit_bits_compare(const jl_cgval_t &arg1, const jl_cgval_t &arg2, 
 static Value *emit_f_is(const jl_cgval_t &arg1, const jl_cgval_t &arg2, jl_codectx_t *ctx)
 {
     jl_value_t *rt1 = arg1.typ, *rt2 = arg2.typ;
-    bool isleaf = jl_is_leaf_type(rt1) && jl_is_leaf_type(rt2);
-    if (isleaf && rt1 != rt2 && !jl_is_type_type(rt1) && !jl_is_type_type(rt2))
-        // disjoint leaf types are never equal (quick test)
+    if (jl_is_leaf_type(rt1) && jl_is_leaf_type(rt2) && rt1 != rt2
+            && !jl_is_type_type(rt1) && !jl_is_type_type(rt2))
+        // disjoint concrete leaf types are never equal (quick test)
         return ConstantInt::get(T_int1, 0);
-    bool ghost1 = arg1.isghost || (isleaf && jl_is_datatype_singleton((jl_datatype_t*)rt1));
-    bool ghost2 = arg2.isghost || (isleaf && jl_is_datatype_singleton((jl_datatype_t*)rt2));
-    if (ghost1 || ghost2) {
-        // comparing singleton objects
-        if (ghost1 && ghost2) {
-            return ConstantInt::get(T_int1, rt1 == rt2);
-        }
+
+    if (arg1.isghost || arg2.isghost) {
+        // comparing to a singleton object
+        if (arg1.TIndex)
+            return emit_isa(arg1, rt2, NULL, ctx); // rt2 is a singleton type
+        if (arg2.TIndex)
+            return emit_isa(arg2, rt1, NULL, ctx); // rt1 is a singleton type
         // mark_gc_use isn't needed since we won't load this pointer
         // and we know at least one of them is a unique Singleton
         // which is already enough to ensure pointer uniqueness for this test
@@ -2364,24 +2364,46 @@ static Value *emit_f_is(const jl_cgval_t &arg1, const jl_cgval_t &arg2, jl_codec
     if (jl_type_intersection(rt1, rt2) == (jl_value_t*)jl_bottom_type) // types are disjoint (exhaustive test)
         return ConstantInt::get(T_int1, 0);
 
-    bool isbits = isleaf && jl_isbits(rt1) && jl_types_equal(rt1, rt2);
+    bool isbits = jl_isbits(rt1) || jl_isbits(rt2);
     if (isbits) { // whether this type is unique'd by value
-        return emit_bits_compare(arg1, arg2, ctx);
+        jl_value_t *typ = jl_isbits(rt1) ? rt1 : rt2;
+        if (rt1 == rt2)
+            return emit_bits_compare(arg1, arg2, ctx);
+        Value *same_type = (typ == rt2) ? emit_isa(arg1, typ, NULL, ctx) : emit_isa(arg2, typ, NULL, ctx);
+        BasicBlock *currBB = builder.GetInsertBlock();
+        BasicBlock *isaBB = BasicBlock::Create(jl_LLVMContext, "is", ctx->f);
+        BasicBlock *postBB = BasicBlock::Create(jl_LLVMContext, "post_is", ctx->f);
+        builder.CreateCondBr(same_type, isaBB, postBB);
+        builder.SetInsertPoint(isaBB);
+        Value *bitcmp = emit_bits_compare(
+                jl_cgval_t(arg1, typ, NULL),
+                jl_cgval_t(arg2, typ, NULL),
+                ctx);
+        builder.CreateBr(postBB);
+        builder.SetInsertPoint(postBB);
+        PHINode *cmp = builder.CreatePHI(T_int1, 2);
+        cmp->addIncoming(ConstantInt::get(T_int1, 0), currBB);
+        cmp->addIncoming(bitcmp, isaBB);
+        return cmp;
     }
 
     int ptr_comparable = 0; // whether this type is unique'd by pointer
-    if (rt1==(jl_value_t*)jl_sym_type || rt2==(jl_value_t*)jl_sym_type ||
-        jl_is_mutable_datatype(rt1) || jl_is_mutable_datatype(rt2)) // excludes abstract types
+    if (rt1 == (jl_value_t*)jl_sym_type || rt2 == (jl_value_t*)jl_sym_type)
+        ptr_comparable = 1;
+    if (jl_is_mutable_datatype(rt1) || jl_is_mutable_datatype(rt2)) // excludes abstract types
         ptr_comparable = 1;
     if (jl_subtype(rt1, (jl_value_t*)jl_type_type) ||
-        jl_subtype(rt2, (jl_value_t*)jl_type_type)) // use typeseq for datatypes
+        jl_subtype(rt2, (jl_value_t*)jl_type_type)) // need to use typeseq for datatypes
         ptr_comparable = 0;
     if ((jl_is_type_type(rt1) && jl_is_leaf_type(jl_tparam0(rt1))) ||
         (jl_is_type_type(rt2) && jl_is_leaf_type(jl_tparam0(rt2)))) // can compare leaf types by pointer
         ptr_comparable = 1;
     if (ptr_comparable) {
-        assert(arg1.isboxed && arg2.isboxed); // only boxed types are valid for pointer comparison
-        return builder.CreateICmpEQ(boxed(arg1, ctx), boxed(arg2, ctx));
+        Value *varg1 = arg1.constant ? literal_pointer_val(arg1.constant) : arg1.V;
+        Value *varg2 = arg2.constant ? literal_pointer_val(arg2.constant) : arg2.V;
+        assert(varg1 && varg2 && (arg1.isboxed || arg1.TIndex) && (arg2.isboxed || arg2.TIndex) &&
+                "Only boxed types are valid for pointer comparison.");
+        return builder.CreateICmpEQ(varg1, varg2);
     }
 
     JL_FEAT_REQUIRE(ctx, runtime);

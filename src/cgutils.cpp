@@ -950,18 +950,23 @@ static void emit_type_error(const jl_cgval_t &x, Value *type, const std::string 
 
 static Value *emit_isa(const jl_cgval_t &x, jl_value_t *type, const std::string *msg, jl_codectx_t *ctx)
 {
-    Value *istype;
-    if (jl_type_intersection(x.typ, type) == (jl_value_t*)jl_bottom_type) {
-        if (msg) {
-            emit_type_error(x, literal_pointer_val(type), *msg, ctx);
-            builder.CreateUnreachable();
-            BasicBlock *failBB = BasicBlock::Create(jl_LLVMContext, "fail", ctx->f);
-            builder.SetInsertPoint(failBB);
-        }
-        return ConstantInt::get(T_int1, 0);
+    bool maybe_isa = true;
+    if (x.constant)
+        maybe_isa = jl_isa(x.constant, type);
+    else if (jl_type_intersection(x.typ, type) == (jl_value_t*)jl_bottom_type)
+        maybe_isa = false;
+    if (!maybe_isa && msg) {
+        emit_type_error(x, literal_pointer_val(type), *msg, ctx);
+        builder.CreateUnreachable();
+        BasicBlock *failBB = BasicBlock::Create(jl_LLVMContext, "fail", ctx->f);
+        builder.SetInsertPoint(failBB);
     }
-    else if (jl_has_intersect_type_not_kind(x.typ) ||
-             jl_has_intersect_type_not_kind(type)) {
+    if (!maybe_isa || x.constant)
+        return ConstantInt::get(T_int1, maybe_isa);
+
+    // intersection with Type needs to be handled specially
+    if (jl_has_intersect_type_not_kind(x.typ) ||
+        jl_has_intersect_type_not_kind(type)) {
         Value *vx = boxed(x, ctx);
         if (msg && *msg == "typeassert") {
 #if JL_LLVM_VERSION >= 30700
@@ -971,7 +976,7 @@ static Value *emit_isa(const jl_cgval_t &x, jl_value_t *type, const std::string 
 #endif
             return ConstantInt::get(T_int1, 1);
         }
-        istype = builder.CreateICmpNE(
+        return builder.CreateICmpNE(
 #if JL_LLVM_VERSION >= 30700
                 builder.CreateCall(prepare_call(jlisa_func), { vx, literal_pointer_val(type) }),
 #else
@@ -979,20 +984,49 @@ static Value *emit_isa(const jl_cgval_t &x, jl_value_t *type, const std::string 
 #endif
                 ConstantInt::get(T_int32, 0));
     }
-    else if (jl_is_leaf_type(type)) {
-        istype = builder.CreateICmpEQ(emit_typeof_boxed(x, ctx), literal_pointer_val(type));
+    // tests for isa leaftype can be handled with pointer comparisons
+    if (jl_is_leaf_type(type)) {
+        if (x.TIndex) {
+            unsigned tindex = get_box_tindex((jl_datatype_t*)type, x.typ);
+            Value *rt_tindex = builder.CreateLoad(x.TIndex);
+            if (!x.V || isa<AllocaInst>(x.V)) {
+                // optimize more when we know that this is a split union-type where tindex = 0 is invalid
+                assert(tindex > 0 && "x.typ should have been a union of leaftypes at this point");
+                return builder.CreateICmpEQ(rt_tindex, ConstantInt::get(T_int8, tindex));
+            }
+            else {
+                // test for ((tindex > 0 && *TIndex == tindex) || (*TIndex == 0 && typeof(x.V) == type))
+                Value *istype_union = NULL;
+                if (tindex > 0)
+                    istype_union = builder.CreateICmpEQ(rt_tindex, ConstantInt::get(T_int8, tindex));
+                else
+                    istype_union = ConstantInt::get(T_int1, 0);
+                Value *isboxed = builder.CreateICmpEQ(rt_tindex, ConstantInt::get(T_int8, 0));
+                BasicBlock *currBB = builder.GetInsertBlock();
+                BasicBlock *isaBB = BasicBlock::Create(jl_LLVMContext, "isa", ctx->f);
+                BasicBlock *postBB = BasicBlock::Create(jl_LLVMContext, "post_isa", ctx->f);
+                builder.CreateCondBr(isboxed, isaBB, postBB);
+                builder.SetInsertPoint(isaBB);
+                Value *istype_boxed = builder.CreateICmpEQ(emit_typeof(x.V), literal_pointer_val(type));
+                builder.CreateBr(postBB);
+                builder.SetInsertPoint(postBB);
+                PHINode *istype = builder.CreatePHI(T_int1, 2);
+                istype->addIncoming(istype_union, currBB);
+                istype->addIncoming(istype_boxed, isaBB);
+                return istype;
+            }
+        }
+        return builder.CreateICmpEQ(emit_typeof_boxed(x, ctx), literal_pointer_val(type));
     }
-    else {
-        Value *vxt = emit_typeof_boxed(x, ctx);
-        istype = builder.CreateICmpNE(
+    // everything else can be handled via subtype tests
+    Value *vxt = emit_typeof_boxed(x, ctx);
+    return builder.CreateICmpNE(
 #if JL_LLVM_VERSION >= 30700
-                builder.CreateCall(prepare_call(jlsubtype_func), { vxt, literal_pointer_val(type) }),
+            builder.CreateCall(prepare_call(jlsubtype_func), { vxt, literal_pointer_val(type) }),
 #else
-                builder.CreateCall2(prepare_call(jlsubtype_func), vxt, literal_pointer_val(type)),
+            builder.CreateCall2(prepare_call(jlsubtype_func), vxt, literal_pointer_val(type)),
 #endif
-                ConstantInt::get(T_int32, 0));
-    }
-    return istype;
+            ConstantInt::get(T_int32, 0));
 }
 
 static void emit_typecheck(const jl_cgval_t &x, jl_value_t *type, const std::string &msg,
@@ -1863,7 +1897,7 @@ static Value *box_union(const jl_cgval_t &vinfo, jl_codectx_t *ctx, const SmallB
                     box = literal_pointer_val(jt->instance);
                 }
                 else {
-                    jl_cgval_t vinfo_r = jl_cgval_t(vinfo, (jl_value_t*)jt, NULL, true);
+                    jl_cgval_t vinfo_r = jl_cgval_t(vinfo, (jl_value_t*)jt, NULL);
                     box = _boxed_special(vinfo_r, t, ctx);
                     if (!box) {
                         box = emit_allocobj(ctx, jl_datatype_size(jt), literal_pointer_val((jl_value_t*)jt));
