@@ -403,7 +403,7 @@ end # let
 # (#18107)
 module SimilarUR
     using Base.Test
-    immutable MyURange <: AbstractUnitRange{Int}
+    struct MyURange <: AbstractUnitRange{Int}
         start::Int
         stop::Int
     end

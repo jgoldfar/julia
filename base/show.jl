@@ -10,7 +10,7 @@ print(io::IO, s::Symbol) = (write(io,s); nothing)
 In short, it is an immutable dictionary that is a subclass of `IO`. It supports standard
 dictionary operations such as [`getindex`](@ref), and can also be used as an I/O stream.
 """
-immutable IOContext{IO_t <: IO} <: AbstractPipe
+struct IOContext{IO_t <: IO} <: AbstractPipe
     io::IO_t
     dict::ImmutableDict{Symbol, Any}
     function IOContext(io::IO_t, dict::ImmutableDict{Symbol, Any})
@@ -857,7 +857,7 @@ function show_unquoted(io::IO, ex::Expr, indent::Int, prec::Int)
 
     # type declaration
     elseif head === :type && nargs==3
-        show_block(io, args[1] ? :type : :immutable, args[2], args[3], indent)
+        show_block(io, args[1] ? Symbol("mutable struct") : :struct, args[2], args[3], indent)
         print(io, "end")
 
     elseif head === :bitstype && nargs == 2

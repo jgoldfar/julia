@@ -246,8 +246,8 @@ end
 ## Traits for array types ##
 
 abstract LinearIndexing
-immutable LinearFast <: LinearIndexing end
-immutable LinearSlow <: LinearIndexing end
+struct LinearFast <: LinearIndexing end
+struct LinearSlow <: LinearIndexing end
 
 """
     Base.linearindexing(A)

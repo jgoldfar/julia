@@ -27,7 +27,7 @@ let REF_ID::Int = 1
     next_ref_id() = (id = REF_ID; REF_ID += 1; id)
 end
 
-immutable RRID
+struct RRID
     whence::Int
     id::Int
 
@@ -46,7 +46,7 @@ hash(r::RRID, h::UInt) = hash(r.whence, hash(r.id, h))
 
 # Message header stored separately from body to be able to send back errors if
 # a deserialization error occurs when reading the message body.
-immutable MsgHeader
+struct MsgHeader
     response_oid::RRID
     notify_oid::RRID
     MsgHeader(respond_oid=RRID(0,0), notify_oid=RRID(0,0)) =
@@ -57,41 +57,41 @@ end
 # Used instead of Nullable to decrease wire size of header.
 null_id(id) =  id == RRID(0, 0)
 
-immutable CallMsg{Mode} <: AbstractMsg
+struct CallMsg{Mode} <: AbstractMsg
     f::Function
     args::Tuple
     kwargs::Array
 end
-immutable CallWaitMsg <: AbstractMsg
+struct CallWaitMsg <: AbstractMsg
     f::Function
     args::Tuple
     kwargs::Array
 end
-immutable RemoteDoMsg <: AbstractMsg
+struct RemoteDoMsg <: AbstractMsg
     f::Function
     args::Tuple
     kwargs::Array
 end
-immutable ResultMsg <: AbstractMsg
+struct ResultMsg <: AbstractMsg
     value::Any
 end
 
 
 # Worker initialization messages
-immutable IdentifySocketMsg <: AbstractMsg
+struct IdentifySocketMsg <: AbstractMsg
     from_pid::Int
 end
 
-immutable IdentifySocketAckMsg <: AbstractMsg
+struct IdentifySocketAckMsg <: AbstractMsg
 end
 
-immutable JoinPGRPMsg <: AbstractMsg
+struct JoinPGRPMsg <: AbstractMsg
     self_pid::Int
     other_workers::Array
     topology::Symbol
     enable_threaded_blas::Bool
 end
-immutable JoinCompleteMsg <: AbstractMsg
+struct JoinCompleteMsg <: AbstractMsg
     cpu_cores::Int
     ospid::Int
 end
@@ -152,7 +152,7 @@ end
 
 abstract ClusterManager
 
-type WorkerConfig
+mutable struct WorkerConfig
     # Common fields relevant to all cluster managers
     io::Nullable{IO}
     host::Nullable{AbstractString}
@@ -201,7 +201,7 @@ type WorkerConfig
 end
 
 @enum WorkerState W_CREATED W_CONNECTED W_TERMINATING W_TERMINATED
-type Worker
+mutable struct Worker
     id::Int
     del_msgs::Array{Any,1}
     add_msgs::Array{Any,1}
@@ -359,7 +359,7 @@ end
 
 ## process group creation ##
 
-type LocalProcess
+mutable struct LocalProcess
     id::Int
     bind_addr::AbstractString
     bind_port::UInt16
@@ -408,7 +408,7 @@ let next_pid = 2    # 1 is reserved for the client (always)
     end
 end
 
-type ProcessGroup
+mutable struct ProcessGroup
     name::AbstractString
     workers::Array{Any,1}
     refs::Dict                  # global references
@@ -578,7 +578,7 @@ After a client Julia process has exited, further attempts to reference the dead 
 throw this exception.
 """
 ProcessExitedException()
-type ProcessExitedException <: Exception end
+mutable struct ProcessExitedException <: Exception end
 
 worker_from_id(i) = worker_from_id(PGRP, i)
 function worker_from_id(pg::ProcessGroup, i)
@@ -695,7 +695,7 @@ const client_refs = WeakKeyDict{Any, Void}() # used as a WeakKeySet
 
 abstract AbstractRemoteRef
 
-type Future <: AbstractRemoteRef
+mutable struct Future <: AbstractRemoteRef
     where::Int
     whence::Int
     id::Int
@@ -705,7 +705,7 @@ type Future <: AbstractRemoteRef
     Future(w::Int, rrid::RRID, v) = (r = new(w,rrid.whence,rrid.id,v); return test_existing_ref(r))
 end
 
-type RemoteChannel{T<:AbstractChannel} <: AbstractRemoteRef
+mutable struct RemoteChannel{T<:AbstractChannel} <: AbstractRemoteRef
     where::Int
     whence::Int
     id::Int
@@ -986,7 +986,7 @@ end
 
 # data stored by the owner of a remote reference
 def_rv_channel() = Channel(1)
-type RemoteValue
+mutable struct RemoteValue
     c::AbstractChannel
     clientset::IntSet # Set of workerids that have a reference to this channel.
                       # Keeping ids instead of a count aids in cleaning up upon
@@ -1000,7 +1000,7 @@ end
 wait(rv::RemoteValue) = wait(rv.c)
 
 ## core messages: do, call, fetch, wait, ref, put! ##
-type RemoteException <: Exception
+mutable struct RemoteException <: Exception
     pid::Int
     captured::CapturedException
 end

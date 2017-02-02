@@ -145,7 +145,7 @@ Returns a `TextDisplay <: Display`, which displays any object as the text/plain 
 (by default), writing the text representation to the given I/O stream. (This is how
 objects are printed in the Julia REPL.)
 """
-immutable TextDisplay <: Display
+struct TextDisplay <: Display
     io::IO
 end
 display(d::TextDisplay, M::MIME"text/plain", x) = show(d.io, M, x)

@@ -94,11 +94,11 @@ abstract UnixTerminal <: TextTerminal
 pipe_reader(t::UnixTerminal) = t.in_stream
 pipe_writer(t::UnixTerminal) = t.out_stream
 
-type TerminalBuffer <: UnixTerminal
+mutable struct TerminalBuffer <: UnixTerminal
     out_stream::Base.IO
 end
 
-type TTYTerminal <: UnixTerminal
+mutable struct TTYTerminal <: UnixTerminal
     term_type::String
     in_stream::Base.TTY
     out_stream::Base.TTY

@@ -112,8 +112,8 @@
 (define operator? (Set operators))
 
 (define initial-reserved-words '(begin while if for try return break continue
-                         function macro quote let local global const
-                         abstract typealias type bitstype immutable do
+                         function macro quote let local global const do
+                         abstract typealias bitstype type immutable struct mutable
                          module baremodule using import export importall))
 
 (define initial-reserved-word? (Set initial-reserved-words))
@@ -1271,13 +1271,20 @@
                 (list word def body)))))
        ((abstract)
         (list 'abstract (parse-subtype-spec s)))
-       ((type immutable)
-        (let ((immu? (eq? word 'immutable)))
+       ((type)
+        (syntax-deprecation s "type" "mutable struct")
+        (parse-resword s 'mutable))
+       ((immutable)
+        (syntax-deprecation s "immutable" "struct")
+        (parse-resword s 'struct))
+       ((struct mutable)
+        (let ((mut? (eq? word 'mutable)))
+          (if (and mut? (eq? (peek-token s) 'struct))
+              (take-token s))  ;; allow `mutable struct`
           (if (reserved-word? (peek-token s))
               (error (string "invalid type name \"" (take-token s) "\"")))
           (let ((sig (parse-subtype-spec s)))
-            (begin0 (list 'type (if (eq? word 'type) 'true 'false)
-                          sig (parse-block s))
+            (begin0 (list 'type (if mut? 'true 'false) sig (parse-block s))
                     (expect-end s word)))))
        ((bitstype)
         (list 'bitstype (with-space-sensitive (parse-cond s))

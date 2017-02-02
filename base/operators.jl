@@ -930,7 +930,7 @@ ranges with the same indices as those they wrap. This means that indexing into
 Slice objects with an integer always returns that exact integer, and they
 iterate over all the wrapped indices, even supporting offset indices.
 """
-immutable Slice{T<:AbstractUnitRange} <: AbstractUnitRange{Int}
+struct Slice{T<:AbstractUnitRange} <: AbstractUnitRange{Int}
     indices::T
 end
 indices(S::Slice) = (S.indices,)
@@ -983,7 +983,7 @@ end
 
 # Pair
 
-immutable Pair{A,B}
+struct Pair{A,B}
     first::A
     second::B
 end

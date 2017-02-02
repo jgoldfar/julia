@@ -597,15 +597,15 @@ end
 
 abstract IT4805_2{N, T}
 abstract AbstractThing{T,N}
-type ConcreteThing{T<:AbstractFloat,N} <: AbstractThing{T,N}
+mutable struct ConcreteThing{T<:AbstractFloat,N} <: AbstractThing{T,N}
 end
-type A11136 end
-type B11136 end
+mutable struct A11136 end
+mutable struct B11136 end
 abstract Foo11367
 
 abstract AbstractTriangular{T,S<:AbstractMatrix} <: AbstractMatrix{T}
-immutable UpperTriangular{T,S<:AbstractMatrix} <: AbstractTriangular{T,S} end
-immutable UnitUpperTriangular{T,S<:AbstractMatrix} <: AbstractTriangular{T,S} end
+struct UpperTriangular{T,S<:AbstractMatrix} <: AbstractTriangular{T,S} end
+struct UnitUpperTriangular{T,S<:AbstractMatrix} <: AbstractTriangular{T,S} end
 
 function test_intersection()
     @testintersect(Vector{Float64}, Vector{Union{Float64,Float32}}, Bottom)
@@ -843,7 +843,7 @@ test_intersection_properties()
 
 # Issue #12580
 abstract AbstractMyType12580{T}
-immutable MyType12580{T}<:AbstractMyType12580{T} end
+struct MyType12580{T}<:AbstractMyType12580{T} end
 tpara{A<:AbstractMyType12580}(::Type{A}) = tpara(supertype(A))
 tpara{I}(::Type{AbstractMyType12580{I}}) = I
 @test tpara(MyType12580{true})

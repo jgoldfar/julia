@@ -24,13 +24,13 @@ therefore be multiplied with matrices of arbitrary size as long as `i2<=size(A,2
 
 See also: [`givens`](@ref)
 """
-immutable Givens{T} <: AbstractRotation{T}
+struct Givens{T} <: AbstractRotation{T}
     i1::Int
     i2::Int
     c::T
     s::T
 end
-type Rotation{T} <: AbstractRotation{T}
+mutable struct Rotation{T} <: AbstractRotation{T}
     rotations::Vector{Givens{T}}
 end
 

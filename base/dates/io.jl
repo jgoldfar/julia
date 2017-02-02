@@ -59,14 +59,14 @@ Base.show(io::IO, x::Time) = print(io, string(x))
 end
 
 # Information for parsing and formatting date time values.
-immutable DateFormat{S, T<:Tuple}
+struct DateFormat{S, T<:Tuple}
     tokens::T
     locale::DateLocale
 end
 
 ### Token types ###
 
-immutable DatePart{letter} <: AbstractDateToken
+struct DatePart{letter} <: AbstractDateToken
     width::Int
     fixed::Bool
 end
@@ -167,7 +167,7 @@ end
 
 ### Delimiters
 
-immutable Delim{T, length} <: AbstractDateToken
+struct Delim{T, length} <: AbstractDateToken
     d::T
 end
 

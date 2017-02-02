@@ -185,7 +185,7 @@ function Typeof end
 (f::typeof(Typeof))(x::ANY) = isa(x,Type) ? Type{x} : typeof(x)
 
 abstract Exception
-type ErrorException <: Exception
+mutable struct ErrorException <: Exception
     msg::AbstractString
     ErrorException(msg::AbstractString) = new(msg)
 end
@@ -196,27 +196,27 @@ macro _noinline_meta()
     Expr(:meta, :noinline)
 end
 
-immutable BoundsError        <: Exception
+struct BoundsError        <: Exception
     a::Any
     i::Any
     BoundsError() = new()
     BoundsError(a::ANY) = (@_noinline_meta; new(a))
     BoundsError(a::ANY, i) = (@_noinline_meta; new(a,i))
 end
-immutable DivideError        <: Exception end
-immutable DomainError        <: Exception end
-immutable OverflowError      <: Exception end
-immutable InexactError       <: Exception end
-immutable OutOfMemoryError   <: Exception end
-immutable ReadOnlyMemoryError<: Exception end
-immutable SegmentationFault  <: Exception end
-immutable StackOverflowError <: Exception end
-immutable UndefRefError      <: Exception end
-immutable UndefVarError      <: Exception
+struct DivideError        <: Exception end
+struct DomainError        <: Exception end
+struct OverflowError      <: Exception end
+struct InexactError       <: Exception end
+struct OutOfMemoryError   <: Exception end
+struct ReadOnlyMemoryError<: Exception end
+struct SegmentationFault  <: Exception end
+struct StackOverflowError <: Exception end
+struct UndefRefError      <: Exception end
+struct UndefVarError      <: Exception
     var::Symbol
 end
-immutable InterruptException <: Exception end
-type TypeError <: Exception
+struct InterruptException <: Exception end
+mutable struct TypeError <: Exception
     func::Symbol
     context::AbstractString
     expected::Type
@@ -239,7 +239,7 @@ kwfunc(f::ANY) = ccall(:jl_get_keyword_sorter, Any, (Any,), f)
 
 kwftype(t::ANY) = typeof(ccall(:jl_get_kwsorter, Any, (Any,), t.name))
 
-type Box
+mutable struct Box
     contents::Any
     Box(x::ANY) = new(x)
     Box() = new()
@@ -247,7 +247,7 @@ end
 
 # constructors for built-in types
 
-type WeakRef
+mutable struct WeakRef
     value
     WeakRef() = WeakRef(nothing)
     WeakRef(v::ANY) = ccall(:jl_gc_new_weakref_th, Ref{WeakRef},
@@ -267,7 +267,7 @@ Void() = nothing
 
 (::Type{Tuple{}})() = ()
 
-immutable VecElement{T}
+struct VecElement{T}
     value::T
     VecElement(value::T) = new(value) # disable converting constructor in Core
 end
@@ -351,8 +351,8 @@ atdoc!(λ) = global atdoc = λ
 
 # simple stand-alone print definitions for debugging
 abstract IO
-type CoreSTDOUT <: IO end
-type CoreSTDERR <: IO end
+mutable struct CoreSTDOUT <: IO end
+mutable struct CoreSTDERR <: IO end
 const STDOUT = CoreSTDOUT()
 const STDERR = CoreSTDERR()
 io_pointer(::CoreSTDOUT) = Intrinsics.pointerref(Intrinsics.cglobal(:jl_uv_stdout, Ptr{Void}), 1, 1)

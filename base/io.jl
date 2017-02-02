@@ -538,7 +538,7 @@ readstring(filename::AbstractString) = open(readstring, filename)
 
 ## high-level iterator interfaces ##
 
-type EachLine
+mutable struct EachLine
     stream::IO
     ondone::Function
     chomp::Bool

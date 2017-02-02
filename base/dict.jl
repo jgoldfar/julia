@@ -89,7 +89,7 @@ Dict{String,Int64} with 2 entries:
   "A" => 1
 ```
 """
-type Dict{K,V} <: Associative{K,V}
+mutable struct Dict{K,V} <: Associative{K,V}
     slots::Array{UInt8,1}
     keys::Array{K,1}
     vals::Array{V,1}
@@ -595,7 +595,7 @@ function filter!(f, d::Union{ObjectIdDict,Dict})
     return d
 end
 
-immutable ImmutableDict{K, V} <: Associative{K,V}
+struct ImmutableDict{K, V} <: Associative{K,V}
     parent::ImmutableDict{K, V}
     key::K
     value::V

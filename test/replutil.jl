@@ -86,7 +86,7 @@ Base.show_method_candidates(buf, MethodError(method_c5,(Int32,)))
 test_have_color(buf, "\e[0m\nClosest candidates are:\n  method_c5(\e[1m\e[31m::Type{Float64}\e[0m)$cfile$c5line\e[0m",
                 "\nClosest candidates are:\n  method_c5(!Matched::Type{Float64})$cfile$c5line")
 
-type Test_type end
+mutable struct Test_type end
 test_type = Test_type()
 for f in [getindex, setindex!]
     Base.show_method_candidates(buf, MethodError(f,(test_type, 1,1)))
@@ -94,7 +94,7 @@ for f in [getindex, setindex!]
 end
 
 PR16155line = @__LINE__ + 2
-type PR16155
+mutable struct PR16155
     a::Int64
     b
 end
@@ -217,7 +217,7 @@ end
 # Pull Request 11007
 abstract InvokeType11007
 abstract MethodType11007 <: InvokeType11007
-type InstanceType11007 <: MethodType11007
+mutable struct InstanceType11007 <: MethodType11007
 end
 let
     f11007(::MethodType11007) = nothing
@@ -258,7 +258,7 @@ let
     @test contains(err_str, "no method matching $(curmod_prefix)T11007()")
 end
 
-immutable TypeWithIntParam{T <: Integer} end
+struct TypeWithIntParam{T <: Integer} end
 let undefvar
     err_str = @except_strbt sqrt(-1) DomainError
     @test contains(err_str, "Try sqrt(complex(x)).")
@@ -321,7 +321,7 @@ end
 # Issue #14884
 bitstype 8 EightBitType
 bitstype 8 EightBitTypeT{T}
-immutable FunctionLike <: Function; end
+struct FunctionLike <: Function; end
 let err_str,
     i = reinterpret(EightBitType, 0x54),
     j = reinterpret(EightBitTypeT{Int32}, 0x54)

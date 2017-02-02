@@ -143,7 +143,7 @@ end
 # DLMStore: Store values directly into a result store (when result dimensions are known)
 abstract DLMHandler
 
-type DLMOffsets <: DLMHandler
+mutable struct DLMOffsets <: DLMHandler
     oarr::Vector{Vector{Int}}
     offidx::Int
     thresh::Int
@@ -194,7 +194,7 @@ function result(dlmoffsets::DLMOffsets)
     dlmoffsets.oarr
 end
 
-type DLMStore{T} <: DLMHandler
+mutable struct DLMStore{T} <: DLMHandler
     hdr::Array{AbstractString, 2}
     data::Array{T, 2}
 

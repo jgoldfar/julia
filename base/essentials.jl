@@ -286,12 +286,12 @@ Very few operations are defined on Colons directly; instead they are converted
 by `to_indices` to an internal vector type (`Base.Slice`) to represent the
 collection of indices they span before being used.
 """
-immutable Colon
+struct Colon
 end
 const (:) = Colon()
 
 # For passing constants through type inference
-immutable Val{T}
+struct Val{T}
 end
 
 # used by interpolating quote and some other things in the front end

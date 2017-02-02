@@ -9,7 +9,7 @@ abstract AbstractTriangular{T,S<:AbstractMatrix} <: AbstractMatrix{T}
 for t in (:LowerTriangular, :UnitLowerTriangular, :UpperTriangular,
           :UnitUpperTriangular)
     @eval begin
-        immutable $t{T,S<:AbstractMatrix} <: AbstractTriangular{T,S}
+        struct $t{T,S<:AbstractMatrix} <: AbstractTriangular{T,S}
             data::S
         end
         $t(A::$t) = A

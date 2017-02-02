@@ -1,6 +1,6 @@
 # This file is a part of Julia. License is MIT: http://julialang.org/license
 
-type IntSet <: AbstractSet{Int}
+mutable struct IntSet <: AbstractSet{Int}
     bits::Array{UInt32,1}
     limit::Int
     fill1s::Bool

@@ -2,7 +2,7 @@
 
 module BaseDocs
 
-immutable Keyword
+struct Keyword
     name :: Symbol
 end
 macro kw_str(text) Keyword(Symbol(text)) end

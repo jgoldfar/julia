@@ -13,7 +13,7 @@ whereas a row vector can be multiplied by a matrix on its right (such that
 its transpose returns a vector and the inner product `v1.' * v2` returns a
 scalar, but will otherwise behave similarly.
 """
-immutable RowVector{T,V<:AbstractVector} <: AbstractMatrix{T}
+struct RowVector{T,V<:AbstractVector} <: AbstractMatrix{T}
     vec::V
     function RowVector(v::V)
         check_types(T,v)

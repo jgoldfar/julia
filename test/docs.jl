@@ -82,7 +82,7 @@ bitstype 8 BT
 bitstype 8 BT2 <: Integer
 
 "T"
-type T <: AT
+mutable struct T <: AT
     "T.x"
     x
     "T.y"
@@ -90,7 +90,7 @@ type T <: AT
 end
 
 "IT"
-immutable IT
+struct IT
     "IT.x"
     x :: Int
     "IT.y"
@@ -132,7 +132,7 @@ t(::Int, ::Any)
 t{S <: Integer}(::S)
 
 "FieldDocs"
-type FieldDocs
+mutable struct FieldDocs
     "one"
     one
     doc"two"
@@ -152,7 +152,7 @@ import .Inner.@m
 "Inner.@m"
 :@m
 
-type Foo
+mutable struct Foo
     x
 end
 
@@ -319,7 +319,7 @@ const C = 1
 abstract A
 
 "T"
-type T
+mutable struct T
     "x"
     x
     "y"
@@ -415,7 +415,7 @@ end
 
 module DocVars
 
-immutable __FIELDS__ end
+struct __FIELDS__ end
 
 function Docs.formatdoc(buffer, docstr, ::Type{__FIELDS__})
     fields = get(docstr.data, :fields, Dict())
@@ -432,7 +432,7 @@ end
 
 $__FIELDS__
 """
-type T
+mutable struct T
     "x"
     x
     "y"
@@ -445,7 +445,7 @@ end
 
 $__FIELDS__
 """
-type S
+mutable struct S
     x
     y
     z
@@ -506,7 +506,7 @@ end
 
 module I15424
 
-immutable LazyHelp
+struct LazyHelp
     text
 end
 
@@ -594,7 +594,7 @@ end
 
 module I12515
 
-immutable EmptyType{T} end
+struct EmptyType{T} end
 
 "A new method"
 Base.collect{T}(::Type{EmptyType{T}}) = "borked"
@@ -699,9 +699,9 @@ module Undocumented
 abstract A
 abstract B <: A
 
-type C <: A end
+mutable struct C <: A end
 
-immutable D <: B
+struct D <: B
     one
     two::String
     three::Float64
@@ -758,7 +758,7 @@ No documentation found.
 
 **Summary:**
 ```
-type $(curmod_prefix)Undocumented.C <: $(curmod_prefix)Undocumented.A
+mutable struct $(curmod_prefix)Undocumented.C <: $(curmod_prefix)Undocumented.A
 ```
 """)
 @test docstrings_equal(@doc(Undocumented.C), doc"$doc_str")
@@ -768,7 +768,7 @@ No documentation found.
 
 **Summary:**
 ```
-immutable $(curmod_prefix)Undocumented.D <: $(curmod_prefix)Undocumented.B
+struct $(curmod_prefix)Undocumented.D <: $(curmod_prefix)Undocumented.B
 ```
 
 **Fields:**
@@ -926,7 +926,7 @@ end
 
 # Dynamic docstrings
 
-type DynamicDocType
+mutable struct DynamicDocType
     x
 end
 

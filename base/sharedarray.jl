@@ -2,7 +2,7 @@
 
 import .Serializer: serialize_cycle_header, serialize_type, writetag, UNDEFREF_TAG
 
-type SharedArray{T,N} <: DenseArray{T,N}
+mutable struct SharedArray{T,N} <: DenseArray{T,N}
     dims::NTuple{N,Int}
     pids::Vector{Int}
     refs::Vector

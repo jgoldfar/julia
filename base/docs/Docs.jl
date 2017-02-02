@@ -127,7 +127,7 @@ which helps to reduce total precompiled image size.
 The `.data` fields stores several values related to the docstring, such as: path,
 linenumber, source code, and fielddocs.
 """
-type DocStr
+mutable struct DocStr
     text   :: Core.SimpleVector
     object :: Nullable
     data   :: Dict{Symbol, Any}
@@ -199,7 +199,7 @@ is stored as `Union{Tuple{T}, Tuple{T, Any}}`.
 
 Note: The `Function`/`DataType` object's signature is always `Union{}`.
 """
-type MultiDoc
+mutable struct MultiDoc
     "Ordered (via definition order) vector of object signatures."
     order::Vector{Type}
     "Documentation for each object. Keys are signatures."
