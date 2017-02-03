@@ -254,9 +254,6 @@ ifeq ($(USE_SYSTEM_LIBM),0)
 JL_PRIVATE_LIBS += openlibm
 endif
 endif
-ifeq ($(USE_SYSTEM_OPENSPECFUN),0)
-JL_PRIVATE_LIBS += openspecfun
-endif
 ifeq ($(USE_SYSTEM_DSFMT),0)
 JL_PRIVATE_LIBS += dSFMT
 endif

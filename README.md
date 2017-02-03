@@ -278,7 +278,6 @@ Julia uses the following external libraries, which are automatically downloaded 
 - **[FemtoLisp]**            — packaged with Julia source, and used to implement the compiler front-end.
 - **[libuv]**                — portable, high-performance event-based I/O library
 - **[OpenLibm]**             — portable libm library containing elementary math functions.
-- **[OpenSpecFun]** (>= 0.4) — library containing Bessel and error functions of complex arguments.
 - **[DSFMT]**                — fast Mersenne Twister pseudorandom number generator library.
 - **[OpenBLAS]**             — fast, open, and maintained [basic linear algebra subprograms (BLAS)](https://en.wikipedia.org/wiki/Basic_Linear_Algebra_Subprograms) library, based on [Kazushige Goto's](https://en.wikipedia.org/wiki/Kazushige_Goto) famous [GotoBLAS](https://www.tacc.utexas.edu/research-development/tacc-software/gotoblas2).
 - **[LAPACK]** (>= 3.5)      — library of linear algebra routines for solving systems of simultaneous linear equations, least-squares solutions of linear systems of equations, eigenvalue problems, and singular value problems.
@@ -310,7 +309,6 @@ Julia uses the following external libraries, which are automatically downloaded 
 [perl]:         http://www.perl.org
 [cmake]:        http://www.cmake.org
 [OpenLibm]:     https://github.com/JuliaLang/openlibm
-[OpenSpecFun]:  https://github.com/JuliaLang/openspecfun
 [DSFMT]:        http://www.math.sci.hiroshima-u.ac.jp/~m-mat/MT/SFMT/#dSFMT
 [OpenBLAS]:     https://github.com/xianyi/OpenBLAS
 [LAPACK]:       http://www.netlib.org/lapack

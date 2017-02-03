@@ -38,7 +38,7 @@ find_shlib ()
 }
 
 # First, discover all the places where libgfortran/libgcc is, as well as their true SONAMES
-for lib in arpack openlibm openspecfun lapack; do
+for lib in arpack openlibm lapack; do
     if [ -f "$private_libdir/lib$lib.$SHLIB_EXT" ]; then
         LIBGFORTRAN_DIRS="$LIBGFORTRAN_DIRS $(dirname $(find_shlib $lib libgfortran) 2>/dev/null)"
         LIBGFORTRAN_DIRS="$LIBGFORTRAN_DIRS $(dirname $(find_shlib $lib libgcc_s) 2>/dev/null)"
@@ -83,7 +83,7 @@ echo "Found traces of libgfortran/libgcc in $LIBGFORTRAN_DIRS"
 # Do the private_libdir libraries
 if [ "$UNAME" = "Darwin" ]; then
     cd $private_libdir
-    for file in openlibm quadmath.0 gfortran.3 openblas arpack lapack openspecfun; do
+    for file in openlibm quadmath.0 gfortran.3 openblas arpack lapack; do
         for dylib in $(ls lib$file*.dylib* 2>/dev/null); do
             for dir in $LIBGFORTRAN_DIRS; do
                 install_name_tool -change "$dir/libgfortran.3.dylib" @rpath/libgfortran.3.dylib $dylib
@@ -96,7 +96,7 @@ fi
 
 if [ "$UNAME" = "Linux" ]; then
     cd $private_libdir
-    for file in openlibm quadmath gfortran openblas arpack lapack openspecfun; do
+    for file in openlibm quadmath gfortran openblas arpack lapack; do
         for dylib in $(ls lib$file*.so* 2>/dev/null); do
             patchelf --set-rpath \$ORIGIN $dylib
         done
