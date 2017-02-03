@@ -7,12 +7,12 @@
 
 #ifdef __linux__
 /* Not sure what to do about __pure2 on linux */
-#define __pure2 
+#define __pure2
 #endif
 
 #if defined(_WIN32) || defined(__sun)
 /* Not sure what to do about __pure2 on windows */
-#define __pure2 
+#define __pure2
 typedef uint8_t               u_int8_t;
 typedef uint16_t              u_int16_t;
 typedef uint32_t              u_int32_t;

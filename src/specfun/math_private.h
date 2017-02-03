@@ -227,7 +227,7 @@ do {								\
  * Common routine to process the arguments to nan(), nanf(), and nanl().
  */
 void _scan_nan(uint32_t *__words, int __num_words, const char *__s);
- 
+
 #ifdef __GNUCLIKE_ASM
 
 /* Asm versions of some functions. */
