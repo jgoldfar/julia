@@ -177,7 +177,6 @@ log(b::Number, x::Number) = log(promote(b,x)...)
 # type specific math functions
 
 const libm = Base.libm_name
-const openspecfun = "libopenspecfun"
 
 # functions with no domain error
 """
@@ -701,7 +700,7 @@ function ieee754_rem_pio2(x::Float64)
     # https://github.com/JuliaLang/openspecfun/blob/master/rem_pio2/e_rem_pio2.c
 
     y = [0.0,0.0]
-    n = ccall((:__ieee754_rem_pio2, openspecfun), Cint, (Float64,Ptr{Float64}), x, y)
+    n = ccall(:__ieee754_rem_pio2, Cint, (Float64,Ptr{Float64}), x, y)
     return (n,y)
 end
 
