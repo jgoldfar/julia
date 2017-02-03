@@ -46,6 +46,7 @@ Language changes
     the `broadcast` call `(⨳).(a, b)`.  Hence, one no longer defines methods
     for `.*` etcetera.  This also means that "dot operations" automatically
     fuse into a single loop, along with other dot calls `f.(x)`. ([#17623])
+    Similarly for unary operators ([#20249]).
 
   * Newly defined methods are no longer callable from the same dynamic runtime
     scope they were defined in ([#17057]).
@@ -62,8 +63,8 @@ Breaking changes
 This section lists changes that do not have deprecation warnings.
 
   * `readline`, `readlines` and `eachline` return lines without line endings by default.
-    You *must* use `readline(s, chomp=false)`, etc. to get the old behavior where lines
-    returned include trailing end-of-line character(s). ([#19944])
+    You *must* use `readline(s, chomp=false)`, etc. to get the old behavior where
+    returned lines include trailing end-of-line character(s). ([#19944])
 
   * `String`s no longer have a `.data` field (as part of a significant performance
     improvement). Use `Vector{UInt8}(str)` to access a string as a byte array.

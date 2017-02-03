@@ -401,6 +401,10 @@ function promote_op(op::Type, Ts::Type...)
     return op
 end
 
+# NOTE: Deprecation of `isdefined(a::Array, i::Int)` is implemented in src/array.c
+# and deprecation of `invoke(f, (types...), ...)` is implemented in src/builtins.c
+# To be removed when 0.6 deprecations are removed
+
 # NOTE: Deprecation of Channel{T}() is implemented in channels.jl.
 # To be removed from there when 0.6 deprecations are removed.
 
@@ -926,8 +930,8 @@ unsafe_wrap(::Type{String}, p::Cstring, len::Integer, own::Bool=false) =
     unsafe_wrap(String, convert(Ptr{UInt8}, p), len, own)
 
 # #19660
-@deprecate finalize(sa::LibGit2.StrArrayStruct) close(sa)
-@deprecate finalize(sa::LibGit2.Buffer) close(sa)
+@deprecate finalize(sa::LibGit2.StrArrayStruct) LibGit2.free(sa)
+@deprecate finalize(sa::LibGit2.Buffer) LibGit2.free(sa)
 
 ## produce, consume, and task iteration
 # NOTE: When removing produce/consume, also remove field Task.consumers and related code in
@@ -1157,14 +1161,6 @@ end
     return false
 end
 
-# Not exported
-eval(LibGit2, quote
-    function owner(x)
-        Base.depwarn("owner(x) is deprecated, use repository(x) instead.", :owner)
-        repository(x)
-    end
-end)
-
 @deprecate EachLine(stream, ondone) EachLine(stream, ondone=ondone)
 
 # These conversions should not be defined, see #19896
@@ -1212,6 +1208,17 @@ end)
 # FloatRange replaced by StepRangeLen
 
 @deprecate FloatRange{T}(start::T, step, len, den) Base.floatrange(T, start, step, len, den)
+
+@noinline zero_arg_matrix_constructor(prefix::String) =
+    depwarn("$prefix() is deprecated, use $prefix(0, 0) instead.", :zero_arg_matrix_constructor)
+function (::Type{Matrix{T}}){T}()
+    zero_arg_matrix_constructor("Matrix{T}")
+    return Matrix{T}(0, 0)
+end
+function (::Type{Matrix})()
+    zero_arg_matrix_constructor("Matrix")
+    return Matrix(0, 0)
+end
 
 for name in ("alnum", "alpha", "cntrl", "digit", "number", "graph",
              "lower", "print", "punct", "space", "upper", "xdigit")
